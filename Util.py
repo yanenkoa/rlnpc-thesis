@@ -1,9 +1,33 @@
 from typing import NamedTuple
 
 
-class Vector2(NamedTuple):
+class Vector2:
+
     x: float
     y: float
+
+    def __init__(self, x: float, y: float) -> None:
+        self.x = x
+        self.y = y
+
+    def __add__(self, other):
+        return Vector2(self.x + other.x, self.y + other.y)
+
+    def __sub__(self, other):
+        return Vector2(self.x - other.x, self.y - other.y)
+
+    def __iadd__(self, other):
+        self.x += other.x
+        self.y += other.y
+        return self
+
+    def __isub__(self, other):
+        self.x += other.x
+        self.y += other.y
+        return self
+
+    def __iter__(self):
+        return iter((self.x, self.y))
 
 
 class Rectangle(NamedTuple):
