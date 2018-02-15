@@ -191,13 +191,11 @@ class World:
     _player: Player
     _walls: List[Wall]
 
-    def __init__(self, width: float, height: float, player: Player):
+    def __init__(self, width: float, height: float, player: Player, walls: List[Wall]):
         self._width = width
         self._height = height
+        self._walls = walls
         self._player = player
-        self._walls = [
-            RectangleWall(Rectangle(Vector2(0, 0), Vector2(400, 400)))
-        ]
         self._player.validator = ValidatorComposition(
             [
                 WallColliderValidator(self._walls),
