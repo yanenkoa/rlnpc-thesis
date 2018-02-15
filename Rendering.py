@@ -33,12 +33,19 @@ def make_unpacked_inverted_rectangle(center: Vector2, width, height: float, y_ca
     )
 
 
+def get_player_text(player: Player):
+    return f"Gold: {player.gold}"
+
+
 class RenderWorld:
+
     _player_color: str = "green"
     _angle_marker_bias: float = 30
     _angle_marker_width: float = 5
     _angle_marker_height: float = 5
     _angle_marker_color: str = "blue"
+    _text_x: float = 50
+    _text_y: float = 50
 
     _master: tk.Tk
     _world: World
@@ -90,6 +97,7 @@ class RenderWorld:
                 tag=f"gold_chest_fig_{i}"
             )
             self._gold_chest_figs[gold_chest] = gold_chest_fig
+        self._text = self._canvas.create_text(self._text_x, self._text_y, text=str(get_player_text(self._world.player)))
         self._canvas.pack()
 
     def _get_player_fig_coords(self) -> UnpackedRectangle:
@@ -117,6 +125,7 @@ class RenderWorld:
     def _update(self) -> None:
         self._canvas.coords(self._player_fig, *self._get_player_fig_coords())
         self._canvas.coords(self._angle_marker_fig, *self._get_angle_marker_coords())
+        self._canvas.itemconfig(self._text, text=str(get_player_text(self._world.player)))
         for gold_chest in self._world.gold_chests:
             if gold_chest.collected:
                 self._canvas.delete(self._gold_chest_figs[gold_chest])
@@ -149,11 +158,11 @@ def main():
         RectangleWall(Rectangle(Vector2(0,   700), Vector2(450, 800))),
     ]
     gold_chests = [
-        GoldChest(500, Vector2(50, 50)),
+        GoldChest(500, Vector2(50,  50)),
         GoldChest(300, Vector2(250, 50)),
         GoldChest(100, Vector2(750, 50)),
-        GoldChest(50, Vector2(350, 450)),
-        GoldChest(200, Vector2(50, 850)),
+        GoldChest(50,  Vector2(350, 450)),
+        GoldChest(200, Vector2(50,  850)),
     ]
     w = World(width, height, p, walls, gold_chests)
     m = tk.Tk()
