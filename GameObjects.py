@@ -59,6 +59,7 @@ class Player:
     _input_device: InputDevice
     _last_update_s: float
     _gold: int
+    _heat: float
 
     def __init__(
             self,
@@ -66,8 +67,7 @@ class Player:
             init_angle: float,
             move_speed_ps: float,
             angle_speed_ps: float,
-            input_device: InputDevice
-    ):
+            input_device: InputDevice):
         self._position = init_pos
         self._angle = init_angle
         self._move_speed_ps = move_speed_ps
@@ -75,6 +75,7 @@ class Player:
         self._input_device = input_device
         self._last_update_s = time()
         self._gold = 0
+        self._heat = 0
 
     def _get_translation(self, elapsed_time_s: float, forward: bool) -> Vector2:
         dx = cos(self._angle) * self._move_speed_ps * elapsed_time_s * (1 if forward else -1)
@@ -116,6 +117,9 @@ class Player:
     def get_rectangle(self):
         return make_rectangle(self._position, self.width, self.height)
 
+    def set_heat(self, heat: float):
+        self._heat = heat
+
     @property
     def angle(self) -> float:
         return self._angle
@@ -127,6 +131,10 @@ class Player:
     @property
     def gold(self) -> int:
         return self._gold
+
+    @property
+    def heat(self):
+        return self._heat
 
 
 class WallType(Enum):
@@ -210,6 +218,34 @@ class GoldChest:
         return self._rectangle
 
 
+class HeatSource:
+
+    _coef: float = 300
+
+    _heat: float
+    _location: Vector2
+    _radius: float = 5
+
+    def __init__(self, heat: float, location: Vector2):
+        self._heat = heat
+        self._location = location
+
+    def get_heat(self, other_location: Vector2):
+        distance2 = (other_location.x - self._location.x) ** 2 + (other_location.y - self._location.y) ** 2
+        if distance2 <= self._radius ** 2:
+            return self._heat
+        else:
+            return self._coef * self._heat / distance2
+
+    @property
+    def location(self):
+        return self._location
+
+    @property
+    def radius(self):
+        return self._radius
+
+
 class World:
 
     _width: int
@@ -217,6 +253,7 @@ class World:
     _player: Player
     _walls: List[Wall]
     _gold_chests: List[GoldChest]
+    _heat_sources: List[HeatSource]
     _validator: LocationValidator
 
     def __init__(
@@ -225,12 +262,14 @@ class World:
             height: float,
             player: Player,
             walls: List[Wall],
-            gold_chests: List[GoldChest] = None):
+            gold_chests: List[GoldChest],
+            heat_sources: List[HeatSource]):
         self._width = width
         self._height = height
         self._player = player
         self._walls = walls
-        self._gold_chests = gold_chests or []
+        self._gold_chests = gold_chests
+        self._heat_sources = heat_sources
         self._validator = ValidatorComposition(
             [
                 WallColliderValidator(self._walls),
@@ -259,6 +298,10 @@ class World:
             if not gold_chest.collected and rectangles_intersect(gold_chest.rectangle, player_rect):
                 self._player.add_gold(gold_chest.collect())
 
+        player_pos = self._player.position
+        heat = sum(hs.get_heat(player_pos) for hs in self._heat_sources)
+        self._player.set_heat(heat)
+
     @property
     def player(self) -> Player:
         return self._player
@@ -278,3 +321,7 @@ class World:
     @property
     def gold_chests(self):
         return self._gold_chests
+
+    @property
+    def heat_sources(self):
+        return self._heat_sources

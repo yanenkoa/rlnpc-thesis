@@ -2,7 +2,7 @@ import tkinter as tk
 from math import pi, sin, cos
 from typing import Any, Tuple, Dict
 
-from GameObjects import World, Player, RectangleConstraints, RectangleWall, GoldChest, Wall
+from GameObjects import World, Player, RectangleConstraints, RectangleWall, GoldChest, Wall, HeatSource
 from InputDevice import InputDevice
 from Util import Vector2, Rectangle, make_rectangle
 
@@ -34,7 +34,7 @@ def make_unpacked_inverted_rectangle(center: Vector2, width, height: float, y_ca
 
 
 def get_player_text(player: Player):
-    return f"Gold: {player.gold}"
+    return f"Gold: {player.gold}\nHeat: {player.heat}"
 
 
 class RenderWorld:
@@ -44,8 +44,8 @@ class RenderWorld:
     _angle_marker_width: float = 5
     _angle_marker_height: float = 5
     _angle_marker_color: str = "blue"
-    _text_x: float = 50
-    _text_y: float = 50
+    _text_x: float = 100
+    _text_y: float = 100
 
     _master: tk.Tk
     _world: World
@@ -54,6 +54,7 @@ class RenderWorld:
     _angle_marker_fig: Any
     _walls_figs: Dict[Wall, Any]
     _gold_chest_figs: Dict[GoldChest, Any]
+    _heat_source_figs: Dict[HeatSource, Any]
 
     def __init__(self, world: World, master: tk.Tk):
         self._master = master
@@ -76,6 +77,7 @@ class RenderWorld:
             width=1,
             tag="angle_marker"
         )
+
         self._walls_figs = {}
         for i, wall in enumerate(self._world.walls):
             if isinstance(wall, RectangleWall):
@@ -86,6 +88,7 @@ class RenderWorld:
                     tag=f"wall_fig_{i}"
                 )
                 self._walls_figs[wall] = wall_fig
+
         self._gold_chest_figs = {}
         for i, gold_chest in enumerate(self._world.gold_chests):
             gold_chest_fig = self._canvas.create_rectangle(
@@ -97,6 +100,19 @@ class RenderWorld:
                 tag=f"gold_chest_fig_{i}"
             )
             self._gold_chest_figs[gold_chest] = gold_chest_fig
+
+        self._heat_source_figs = {}
+        for i, heat_source in enumerate(self._world.heat_sources):
+            heat_source_fig = self._canvas.create_oval(
+                *make_unpacked_inverted_rectangle(
+                    heat_source.location, heat_source.radius, heat_source.radius, self._world.height
+                ),
+                fill="orange",
+                width=1,
+                tag=f"heat_source_fig{i}"
+            )
+            self._heat_source_figs[heat_source] = heat_source_fig
+
         self._text = self._canvas.create_text(self._text_x, self._text_y, text=str(get_player_text(self._world.player)))
         self._canvas.pack()
 
@@ -164,7 +180,10 @@ def main():
         GoldChest(50,  Vector2(350, 450)),
         GoldChest(200, Vector2(50,  850)),
     ]
-    w = World(width, height, p, walls, gold_chests)
+    heat_sources = [
+        HeatSource(1000, Vector2(450, 450))
+    ]
+    w = World(width, height, p, walls, gold_chests, heat_sources)
     m = tk.Tk()
     rw = RenderWorld(w, m)
     rw.loop()
