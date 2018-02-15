@@ -5,7 +5,8 @@ from time import time
 from typing import List, NamedTuple
 
 from InputDevice import InputDevice
-from Util import Vector2, Rectangle, get_rectangle_points, point_in_rectangle_points, make_rectangle
+from Util import Vector2, Rectangle, get_rectangle_points, point_in_rectangle_points, make_rectangle, \
+    rectangles_intersect
 
 
 class LocationValidator(ABC):
@@ -48,8 +49,8 @@ class PlayerUpdate(NamedTuple):
 
 class Player:
 
-    width: float = 10.0
-    height: float = 10.0
+    width: float = 15.0
+    height: float = 15.0
 
     _angle: float
     _position: Vector2
@@ -57,20 +58,23 @@ class Player:
     _angle_speed_ps: float
     _input_device: InputDevice
     _last_update_s: float
+    _gold: int
 
     def __init__(
             self,
             init_pos: Vector2,
+            init_angle: float,
             move_speed_ps: float,
             angle_speed_ps: float,
             input_device: InputDevice
     ):
-        self._angle = 0.0
         self._position = init_pos
+        self._angle = init_angle
         self._move_speed_ps = move_speed_ps
         self._angle_speed_ps = angle_speed_ps
         self._input_device = input_device
         self._last_update_s = time()
+        self._gold = 0
 
     def _get_translation(self, elapsed_time_s: float, forward: bool) -> Vector2:
         dx = cos(self._angle) * self._move_speed_ps * elapsed_time_s * (1 if forward else -1)
@@ -106,6 +110,12 @@ class Player:
         self._position += player_update.translation
         self._angle += player_update.angle_increment
 
+    def add_gold(self, gold) -> None:
+        self._gold += gold
+
+    def get_rectangle(self):
+        return make_rectangle(self._position, self.width, self.height)
+
     @property
     def angle(self) -> float:
         return self._angle
@@ -113,6 +123,10 @@ class Player:
     @property
     def position(self) -> Vector2:
         return self._position
+
+    @property
+    def gold(self) -> int:
+        return self._gold
 
 
 class WallType(Enum):
@@ -160,19 +174,63 @@ class RectangleWall(Wall):
         return self._rectangle
 
 
+class GoldChest:
+
+    width: float = 10
+    height: float = 10
+
+    _collected: bool = False
+    _gold: int
+    _location: Vector2
+    _rectangle: Rectangle
+
+    def __init__(self, gold: int, location: Vector2):
+        self._gold = gold
+        self._location = location
+        self._rectangle = make_rectangle(location, self.width, self.height)
+
+    def collect(self) -> int:
+        self._collected = True
+        return self._gold
+
+    @property
+    def location(self):
+        return self._location
+
+    @property
+    def gold(self):
+        return self._gold
+
+    @property
+    def collected(self):
+        return self._collected
+
+    @property
+    def rectangle(self):
+        return self._rectangle
+
+
 class World:
 
     _width: int
     _height: int
     _player: Player
     _walls: List[Wall]
+    _gold_chests: List[GoldChest]
     _validator: LocationValidator
 
-    def __init__(self, width: float, height: float, player: Player, walls: List[Wall]):
+    def __init__(
+            self,
+            width: float,
+            height: float,
+            player: Player,
+            walls: List[Wall],
+            gold_chests: List[GoldChest] = None):
         self._width = width
         self._height = height
         self._player = player
         self._walls = walls
+        self._gold_chests = gold_chests or []
         self._validator = ValidatorComposition(
             [
                 WallColliderValidator(self._walls),
@@ -192,8 +250,14 @@ class World:
         for p in new_player_points:
             if not self._validator.is_valid(p):
                 self._player.update(PlayerUpdate(Vector2(0, 0), player_update.angle_increment))
-                return
-        self._player.update(player_update)
+                break
+        else:
+            self._player.update(player_update)
+
+        player_rect = self._player.get_rectangle()
+        for gold_chest in self._gold_chests:
+            if not gold_chest.collected and rectangles_intersect(gold_chest.rectangle, player_rect):
+                self._player.add_gold(gold_chest.collect())
 
     @property
     def player(self) -> Player:
@@ -210,3 +274,7 @@ class World:
     @property
     def walls(self) -> List[Wall]:
         return self._walls
+
+    @property
+    def gold_chests(self):
+        return self._gold_chests

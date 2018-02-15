@@ -1,12 +1,10 @@
-from math import pi, sin, cos
 import tkinter as tk
-from typing import Any, Tuple
+from math import pi, sin, cos
+from typing import Any, Tuple, Dict
 
-from GameObjects import World, Player, RectangleConstraints, WallType, RectangleWall
+from GameObjects import World, Player, RectangleConstraints, RectangleWall, GoldChest, Wall
 from InputDevice import InputDevice
 from Util import Vector2, Rectangle, make_rectangle
-
-import time
 
 UnpackedRectangle = Tuple[float, float, float, float]
 
@@ -47,7 +45,8 @@ class RenderWorld:
     _canvas: tk.Canvas
     _player_fig: Any
     _angle_marker_fig: Any
-    _walls_figs: Any
+    _walls_figs: Dict[Wall, Any]
+    _gold_chest_figs: Dict[GoldChest, Any]
 
     def __init__(self, world: World, master: tk.Tk):
         self._master = master
@@ -70,7 +69,7 @@ class RenderWorld:
             width=1,
             tag="angle_marker"
         )
-        self._walls_figs = []
+        self._walls_figs = {}
         for i, wall in enumerate(self._world.walls):
             if isinstance(wall, RectangleWall):
                 wall_fig = self._canvas.create_rectangle(
@@ -79,9 +78,19 @@ class RenderWorld:
                     width=0,
                     tag=f"wall_fig_{i}"
                 )
-                self._walls_figs.append(wall_fig)
+                self._walls_figs[wall] = wall_fig
+        self._gold_chest_figs = {}
+        for i, gold_chest in enumerate(self._world.gold_chests):
+            gold_chest_fig = self._canvas.create_rectangle(
+                *make_unpacked_inverted_rectangle(
+                    gold_chest.location, gold_chest.width, gold_chest.height, self._world.height
+                ),
+                fill="yellow",
+                width=1,
+                tag=f"gold_chest_fig_{i}"
+            )
+            self._gold_chest_figs[gold_chest] = gold_chest_fig
         self._canvas.pack()
-        self._text = self._canvas.create_text(100, 100, text="0")
 
     def _get_player_fig_coords(self) -> UnpackedRectangle:
         return make_unpacked_inverted_rectangle(
@@ -108,7 +117,9 @@ class RenderWorld:
     def _update(self) -> None:
         self._canvas.coords(self._player_fig, *self._get_player_fig_coords())
         self._canvas.coords(self._angle_marker_fig, *self._get_angle_marker_coords())
-        self._canvas.itemconfigure(self._text, text=str(time.time()))
+        for gold_chest in self._world.gold_chests:
+            if gold_chest.collected:
+                self._canvas.delete(self._gold_chest_figs[gold_chest])
 
     def loop(self):
         while True:
@@ -123,12 +134,28 @@ def main():
     height = 1000
     input_device = InputDevice()
     strategy = RectangleConstraints(width, height)
-    p = Player(Vector2(width - 50, 50), 300, pi / 0.8, input_device)
+    p = Player(Vector2(width - 50, 50), pi / 2, 300, pi / 0.8, input_device)
     walls = [
-        RectangleWall(Rectangle(Vector2(800, 0), Vector2(900, 400))),
-        RectangleWall(Rectangle(Vector2(500, 400), Vector2(900, 500)))
+        RectangleWall(Rectangle(Vector2(800,   0), Vector2(900, 400))),
+        RectangleWall(Rectangle(Vector2(500, 400), Vector2(900, 500))),
+        RectangleWall(Rectangle(Vector2(500,   0), Vector2(600, 300))),
+        RectangleWall(Rectangle(Vector2(100,   0), Vector2(200, 300))),
+        RectangleWall(Rectangle(Vector2(200, 100), Vector2(400, 200))),
+        RectangleWall(Rectangle(Vector2(100, 300), Vector2(300, 400))),
+        RectangleWall(Rectangle(Vector2(100, 300), Vector2(300, 400))),
+        RectangleWall(Rectangle(Vector2(600, 600), Vector2(950, 700))),
+        RectangleWall(Rectangle(Vector2(850, 700), Vector2(950, 950))),
+        RectangleWall(Rectangle(Vector2(600, 700), Vector2(700, 850))),
+        RectangleWall(Rectangle(Vector2(0,   700), Vector2(450, 800))),
     ]
-    w = World(width, height, p, walls)
+    gold_chests = [
+        GoldChest(500, Vector2(50, 50)),
+        GoldChest(300, Vector2(250, 50)),
+        GoldChest(100, Vector2(750, 50)),
+        GoldChest(50, Vector2(350, 450)),
+        GoldChest(200, Vector2(50, 850)),
+    ]
+    w = World(width, height, p, walls, gold_chests)
     m = tk.Tk()
     rw = RenderWorld(w, m)
     rw.loop()
