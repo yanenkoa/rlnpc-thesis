@@ -1,17 +1,11 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from math import sin, cos, pi
+from math import sin, cos
 from time import time
-from typing import List
+from typing import List, NamedTuple
 
 from InputDevice import InputDevice
-from Util import Vector2, Rectangle, make_rectangle, get_rectangle_points, point_in_rectangle_points
-
-
-class GameObject(ABC):
-
-    @abstractmethod
-    def update(self) -> None: pass
+from Util import Vector2, Rectangle, get_rectangle_points, point_in_rectangle_points, make_rectangle
 
 
 class LocationValidator(ABC):
@@ -47,10 +41,15 @@ class RectangleConstraints(LocationValidator):
         return 0 <= position.x <= self._x_cap and 0 <= position.y <= self._y_cap
 
 
-class Player(GameObject):
+class PlayerUpdate(NamedTuple):
+    translation: Vector2
+    angle_increment: float
 
-    width: float = 20
-    height: float = 20
+
+class Player:
+
+    width: float = 10.0
+    height: float = 10.0
 
     _angle: float
     _position: Vector2
@@ -59,76 +58,53 @@ class Player(GameObject):
     _input_device: InputDevice
     _last_update_s: float
 
-    validator: LocationValidator
-
     def __init__(
             self,
             init_pos: Vector2,
             move_speed_ps: float,
             angle_speed_ps: float,
-            input_device: InputDevice,
-            validator: LocationValidator = None
+            input_device: InputDevice
     ):
-        self._angle = 0
+        self._angle = 0.0
         self._position = init_pos
         self._move_speed_ps = move_speed_ps
         self._angle_speed_ps = angle_speed_ps
         self._input_device = input_device
         self._last_update_s = time()
-        self.validator = validator
 
-    def _get_move_increment(self, elapsed_time_s: float) -> Vector2:
-        dx = cos(self._angle) * self._move_speed_ps * elapsed_time_s
-        dy = sin(self._angle) * self._move_speed_ps * elapsed_time_s
+    def _get_translation(self, elapsed_time_s: float, forward: bool) -> Vector2:
+        dx = cos(self._angle) * self._move_speed_ps * elapsed_time_s * (1 if forward else -1)
+        dy = sin(self._angle) * self._move_speed_ps * elapsed_time_s * (1 if forward else -1)
         return Vector2(dx, dy)
 
-    def _move_forward(self, elapsed_time_s: float) -> None:
-        move_increment = self._get_move_increment(elapsed_time_s)
-        self._position = Vector2(
-            self._position.x + move_increment.x,
-            self._position.y + move_increment.y
-        )
+    def _get_angle_increment(self, elapsed_time_s: float, clockwise: bool):
+        return self._angle_speed_ps * elapsed_time_s * (-1 if clockwise else 1)
 
-    def _move_backward(self, elapsed_time_s: float) -> None:
-        move_increment = self._get_move_increment(elapsed_time_s)
-        self._position = Vector2(
-            self._position.x - move_increment.x,
-            self._position.y - move_increment.y
-        )
-
-    def _turn_counter_clockwise(self, elapsed_time_s) -> None:
-        self._angle += self._angle_speed_ps * elapsed_time_s
-
-    def _turn_clockwise(self, elapsed_time_s) -> None:
-        self._angle -= self._angle_speed_ps * elapsed_time_s
-
-    def update(self) -> None:
-
-        old_position = Vector2(self._position.x, self._position.y)
+    def get_update(self) -> PlayerUpdate:
 
         cur_time_s = time()
         elapsed_time_s = cur_time_s - self._last_update_s
         self._last_update_s = cur_time_s
 
         if self._input_device.is_key_down("w"):
-            self._move_forward(elapsed_time_s)
-
-        if self._input_device.is_key_down("s"):
-            self._move_backward(elapsed_time_s)
-
-        if self._input_device.is_key_down("a"):
-            self._turn_counter_clockwise(elapsed_time_s)
+            translation = self._get_translation(elapsed_time_s, True)
+        elif self._input_device.is_key_down("s"):
+            translation = self._get_translation(elapsed_time_s, False)
+        else:
+            translation = Vector2(0.0, 0.0)
 
         if self._input_device.is_key_down("d"):
-            self._turn_clockwise(elapsed_time_s)
+            angle_increment = self._get_angle_increment(elapsed_time_s, True)
+        elif self._input_device.is_key_down("a"):
+            angle_increment = self._get_angle_increment(elapsed_time_s, False)
+        else:
+            angle_increment = 0.0
 
-        if self.validator is not None:
-            player_points = get_rectangle_points(make_rectangle(self._position, self.width, self.height))
-            for p in player_points:
-                if not self.validator.is_valid(p):
-                    self._position = old_position
-                    return
+        return PlayerUpdate(translation, angle_increment)
 
+    def update(self, player_update: PlayerUpdate) -> None:
+        self._position += player_update.translation
+        self._angle += player_update.angle_increment
 
     @property
     def angle(self) -> float:
@@ -190,13 +166,14 @@ class World:
     _height: int
     _player: Player
     _walls: List[Wall]
+    _validator: LocationValidator
 
     def __init__(self, width: float, height: float, player: Player, walls: List[Wall]):
         self._width = width
         self._height = height
-        self._walls = walls
         self._player = player
-        self._player.validator = ValidatorComposition(
+        self._walls = walls
+        self._validator = ValidatorComposition(
             [
                 WallColliderValidator(self._walls),
                 RectangleConstraints(self._width, self._height)
@@ -204,7 +181,19 @@ class World:
         )
 
     def update(self) -> None:
-        self._player.update()
+        player_update = self._player.get_update()
+        new_player_points = get_rectangle_points(
+            make_rectangle(
+                self._player.position + player_update.translation,
+                self._player.width,
+                self._player.height
+            )
+        )
+        for p in new_player_points:
+            if not self._validator.is_valid(p):
+                self._player.update(PlayerUpdate(Vector2(0, 0), player_update.angle_increment))
+                return
+        self._player.update(player_update)
 
     @property
     def player(self) -> Player:

@@ -123,7 +123,7 @@ def main():
     height = 1000
     input_device = InputDevice()
     strategy = RectangleConstraints(width, height)
-    p = Player(Vector2(width - 50, 50), 300, pi / 0.8, input_device, strategy)
+    p = Player(Vector2(width - 50, 50), 300, pi / 0.8, input_device)
     walls = [
         RectangleWall(Rectangle(Vector2(800, 0), Vector2(900, 400))),
         RectangleWall(Rectangle(Vector2(500, 400), Vector2(900, 500)))
