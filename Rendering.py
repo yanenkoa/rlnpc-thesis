@@ -1,11 +1,8 @@
 import tkinter as tk
-from math import pi, sin, cos
+from math import sin, cos
 from typing import Any, Tuple, Dict
 
-from pynput.keyboard import Key
-
-from GameObjects import World, Player, RectangleConstraints, RectangleWall, GoldChest, Wall, HeatSource, Portal
-from InputDevice import InputDevice
+from GameObjects import World, Player, RectangleWall, GoldChest, Wall, HeatSource
 from Util import Vector2, Rectangle, make_rectangle
 
 UnpackedRectangle = Tuple[float, float, float, float]
@@ -50,9 +47,8 @@ class RenderWorld:
     _text_y: float = 100
 
     _world: World
-    _master: tk.Tk
-    _input_device: InputDevice
 
+    _master: tk.Tk
     _canvas: tk.Canvas
     _player_fig: Any
     _angle_marker_fig: Any
@@ -60,13 +56,13 @@ class RenderWorld:
     _gold_chest_figs: Dict[GoldChest, Any]
     _heat_source_figs: Dict[HeatSource, Any]
 
-    def __init__(self, world: World, master: tk.Tk, input_device: InputDevice):
+    def __init__(self, world: World):
 
         self._world = world
-        self._master = master
-        self._input_device = input_device
 
-        self._canvas = tk.Canvas(master, width=world.width, height=world.height)
+        self._master = tk.Tk()
+
+        self._canvas = tk.Canvas(self._master, width=world.width, height=world.height)
         self._canvas.create_rectangle(
             0, 0, self._world.width, self._world.height,
             fill="white",
@@ -156,7 +152,7 @@ class RenderWorld:
             self._world.height
         )
 
-    def _update(self) -> None:
+    def _redraw(self) -> None:
         self._canvas.coords(self._player_fig, *self._get_player_fig_coords())
         self._canvas.coords(self._angle_marker_fig, *self._get_angle_marker_coords())
         text = str(get_player_text(self._world.player))
@@ -167,50 +163,7 @@ class RenderWorld:
             if gold_chest.collected:
                 self._canvas.delete(self._gold_chest_figs[gold_chest])
 
-    def loop(self):
-        while True:
-            self._world.update()
-            self._update()
-            self._master.update_idletasks()
-            self._master.update()
-            if self._input_device.is_key_down(Key.esc):
-                break
-
-
-def main():
-    width = 1000
-    height = 1000
-    input_device = InputDevice()
-    strategy = RectangleConstraints(width, height)
-    p = Player(Vector2(width - 50, 50), pi / 2, 300, pi / 0.8, input_device)
-    walls = [
-        RectangleWall(Rectangle(Vector2(800,   0), Vector2(900, 400))),
-        RectangleWall(Rectangle(Vector2(500, 400), Vector2(900, 500))),
-        RectangleWall(Rectangle(Vector2(500,   0), Vector2(600, 300))),
-        RectangleWall(Rectangle(Vector2(100,   0), Vector2(200, 300))),
-        RectangleWall(Rectangle(Vector2(200, 100), Vector2(400, 200))),
-        RectangleWall(Rectangle(Vector2(100, 300), Vector2(300, 400))),
-        RectangleWall(Rectangle(Vector2(100, 300), Vector2(300, 400))),
-        RectangleWall(Rectangle(Vector2(600, 600), Vector2(950, 700))),
-        RectangleWall(Rectangle(Vector2(850, 700), Vector2(950, 950))),
-        RectangleWall(Rectangle(Vector2(600, 700), Vector2(700, 850))),
-        RectangleWall(Rectangle(Vector2(0,   700), Vector2(450, 800))),
-    ]
-    gold_chests = [
-        GoldChest(500, Vector2(50,  50)),
-        GoldChest(300, Vector2(250, 50)),
-        GoldChest(100, Vector2(750, 50)),
-        GoldChest(50,  Vector2(350, 450)),
-        GoldChest(200, Vector2(50,  850)),
-    ]
-    heat_sources = [
-        HeatSource(1000, Vector2(450, 450)),
-    ]
-    w = World(width, height, p, walls, gold_chests, heat_sources, Portal(Vector2(800, 750)))
-    m = tk.Tk()
-    rw = RenderWorld(w, m, input_device)
-    rw.loop()
-
-
-if __name__ == '__main__':
-    main()
+    def update(self):
+        self._redraw()
+        self._master.update_idletasks()
+        self._master.update()

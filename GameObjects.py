@@ -1,10 +1,8 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 from math import sin, cos
-from time import time
 from typing import List, NamedTuple
 
-from InputDevice import InputDevice
 from Util import Vector2, Rectangle, get_rectangle_points, point_in_rectangle_points, make_rectangle, \
     rectangles_intersect
 
@@ -47,6 +45,12 @@ class PlayerUpdate(NamedTuple):
     angle_increment: float
 
 
+class PlayerMovementDirection(Enum):
+    BACKWARD: int = -1
+    NONE: int = 0
+    FORWARD: int = 1
+
+
 class Player:
 
     width: float = 15.0
@@ -55,61 +59,26 @@ class Player:
     _angle: float
     _position: Vector2
     _move_speed_ps: float
-    _angle_speed_ps: float
-    _input_device: InputDevice
-    _last_update_s: float
     _gold: int
     _heat: float
 
-    def __init__(
-            self,
-            init_pos: Vector2,
-            init_angle: float,
-            move_speed_ps: float,
-            angle_speed_ps: float,
-            input_device: InputDevice):
+    def __init__(self, init_pos: Vector2, init_angle: float, move_speed_ps: float):
         self._position = init_pos
         self._angle = init_angle
         self._move_speed_ps = move_speed_ps
-        self._angle_speed_ps = angle_speed_ps
-        self._input_device = input_device
-        self._last_update_s = time()
         self._gold = 0
         self._heat = 0
 
-    def _get_translation(self, elapsed_time_s: float, forward: bool) -> Vector2:
-        dx = cos(self._angle) * self._move_speed_ps * elapsed_time_s * (1 if forward else -1)
-        dy = sin(self._angle) * self._move_speed_ps * elapsed_time_s * (1 if forward else -1)
+    def get_translation(self, elapsed_time_s: float, direction: PlayerMovementDirection) -> Vector2:
+        dx = cos(self._angle) * self._move_speed_ps * elapsed_time_s * direction.value
+        dy = sin(self._angle) * self._move_speed_ps * elapsed_time_s * direction.value
         return Vector2(dx, dy)
 
-    def _get_angle_increment(self, elapsed_time_s: float, clockwise: bool):
-        return self._angle_speed_ps * elapsed_time_s * (-1 if clockwise else 1)
+    def apply_translation(self, translation: Vector2):
+        self._position += translation
 
-    def get_update(self) -> PlayerUpdate:
-
-        cur_time_s = time()
-        elapsed_time_s = cur_time_s - self._last_update_s
-        self._last_update_s = cur_time_s
-
-        if self._input_device.is_key_down("w"):
-            translation = self._get_translation(elapsed_time_s, True)
-        elif self._input_device.is_key_down("s"):
-            translation = self._get_translation(elapsed_time_s, False)
-        else:
-            translation = Vector2(0.0, 0.0)
-
-        if self._input_device.is_key_down("d"):
-            angle_increment = self._get_angle_increment(elapsed_time_s, True)
-        elif self._input_device.is_key_down("a"):
-            angle_increment = self._get_angle_increment(elapsed_time_s, False)
-        else:
-            angle_increment = 0.0
-
-        return PlayerUpdate(translation, angle_increment)
-
-    def update(self, player_update: PlayerUpdate) -> None:
-        self._position += player_update.translation
-        self._angle += player_update.angle_increment
+    def update_angle(self, new_angle: float) -> None:
+        self._angle = new_angle
 
     def add_gold(self, gold) -> None:
         self._gold += gold
@@ -297,7 +266,30 @@ class World:
         )
         self._game_over = False
 
-    def update(self) -> None:
+    def update_player_angle(self, new_angle: float) -> None:
+        if not self._game_over:
+            self._player.update_angle(new_angle)
+
+    def move_player(self, elapsed_time_s: float, direction: PlayerMovementDirection) -> None:
+
+        if self._game_over:
+            return
+
+        translation = self._player.get_translation(elapsed_time_s, direction)
+        new_player_points = get_rectangle_points(
+            make_rectangle(
+                self._player.position + translation,
+                self._player.width,
+                self._player.height
+            )
+        )
+        for p in new_player_points:
+            if not self._validator.is_valid(p):
+                break
+        else:
+            self._player.apply_translation(translation)
+
+    def update_state(self) -> None:
 
         portal_rect = make_rectangle(self._portal.location, self._portal.width, self._portal.height)
         player_rect = self._player.get_rectangle()
@@ -306,21 +298,6 @@ class World:
 
         if self._game_over:
             return
-
-        player_update = self._player.get_update()
-        new_player_points = get_rectangle_points(
-            make_rectangle(
-                self._player.position + player_update.translation,
-                self._player.width,
-                self._player.height
-            )
-        )
-        for p in new_player_points:
-            if not self._validator.is_valid(p):
-                self._player.update(PlayerUpdate(Vector2(0, 0), player_update.angle_increment))
-                break
-        else:
-            self._player.update(player_update)
 
         for gold_chest in self._gold_chests:
             if not gold_chest.collected and rectangles_intersect(gold_chest.rectangle, player_rect):
