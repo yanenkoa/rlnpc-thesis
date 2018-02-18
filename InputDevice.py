@@ -6,7 +6,6 @@ KeyType = Union[Key, KeyCode, str]
 
 
 class InputDevice:
-
     _pressed_keys: Set[KeyType]
     _listener: Listener
 

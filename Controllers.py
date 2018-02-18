@@ -3,15 +3,13 @@ from time import time
 
 from pynput.keyboard import Key
 
-from GameObjects import World, Player, RectangleWall, GoldChest, HeatSource, Portal, \
-    PlayerMovementDirection
+from GameObjects import World, Player, RectangleWall, GoldChest, HeatSource, Portal, PlayerMovementDirection
 from InputDevice import InputDevice
 from Rendering import RenderWorld
 from Util import Vector2, Rectangle
 
 
 class KeyboardController:
-
     _turn_rate_ps: float
     _input_device: InputDevice
     _world: World

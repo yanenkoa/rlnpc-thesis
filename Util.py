@@ -2,7 +2,6 @@ from typing import NamedTuple
 
 
 class Vector2:
-
     x: float
     y: float
 
@@ -67,10 +66,10 @@ def get_rectangle_points(rectangle: Rectangle) -> RectanglePoints:
 
 def point_in_rectangle_points(point: Vector2, points: RectanglePoints) -> bool:
     return (
-        to_the_left(point, points.lower_left, points.lower_right) and
-        to_the_left(point, points.lower_right, points.upper_right) and
-        to_the_left(point, points.upper_right, points.upper_left) and
-        to_the_left(point, points.upper_left, points.lower_left)
+            to_the_left(point, points.lower_left, points.lower_right) and
+            to_the_left(point, points.lower_right, points.upper_right) and
+            to_the_left(point, points.upper_right, points.upper_left) and
+            to_the_left(point, points.upper_left, points.lower_left)
     )
 
 
@@ -78,8 +77,8 @@ def rectangles_intersect(r1: Rectangle, r2: Rectangle) -> bool:
     points1 = get_rectangle_points(r1)
     points2 = get_rectangle_points(r2)
     return (
-            point_in_rectangle_points(points1.lower_left,  points2) or
+            point_in_rectangle_points(points1.lower_left, points2) or
             point_in_rectangle_points(points1.lower_right, points2) or
             point_in_rectangle_points(points1.upper_right, points2) or
-            point_in_rectangle_points(points1.upper_left,  points2)
+            point_in_rectangle_points(points1.upper_left, points2)
     )

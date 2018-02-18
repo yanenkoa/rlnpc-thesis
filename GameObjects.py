@@ -14,7 +14,6 @@ class LocationValidator(ABC):
 
 
 class ValidatorComposition(LocationValidator):
-
     _validators: List[LocationValidator]
 
     def __init__(self, validators: List[LocationValidator]):
@@ -28,7 +27,6 @@ class ValidatorComposition(LocationValidator):
 
 
 class RectangleConstraints(LocationValidator):
-
     _x_cap: float
     _y_cap: float
 
@@ -52,7 +50,6 @@ class PlayerMovementDirection(Enum):
 
 
 class Player:
-
     width: float = 15.0
     height: float = 15.0
 
@@ -120,7 +117,6 @@ class Wall(ABC):
 
 
 class WallColliderValidator(LocationValidator):
-
     _walls: List[Wall]
 
     def __init__(self, walls: List[Wall]):
@@ -134,7 +130,6 @@ class WallColliderValidator(LocationValidator):
 
 
 class RectangleWall(Wall):
-
     _rectangle: Rectangle
 
     def __init__(self, rectangle: Rectangle):
@@ -152,7 +147,6 @@ class RectangleWall(Wall):
 
 
 class GoldChest:
-
     width: float = 10
     height: float = 10
 
@@ -188,7 +182,6 @@ class GoldChest:
 
 
 class HeatSource:
-
     _coef: float = 300
 
     _heat: float
@@ -216,7 +209,6 @@ class HeatSource:
 
 
 class Portal:
-
     width: float = 30
     height: float = 30
 
@@ -231,7 +223,6 @@ class Portal:
 
 
 class World:
-
     _width: int
     _height: int
     _player: Player

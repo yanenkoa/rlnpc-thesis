@@ -37,7 +37,6 @@ def get_player_text(player: Player):
 
 
 class RenderWorld:
-
     _player_color: str = "green"
     _angle_marker_bias: float = 30
     _angle_marker_width: float = 5
