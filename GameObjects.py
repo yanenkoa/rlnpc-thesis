@@ -246,6 +246,21 @@ class HeatSource:
         return self._radius
 
 
+class Portal:
+
+    width: float = 30
+    height: float = 30
+
+    _location: Vector2
+
+    def __init__(self, location: Vector2):
+        self._location = location
+
+    @property
+    def location(self):
+        return self._location
+
+
 class World:
 
     _width: int
@@ -254,7 +269,9 @@ class World:
     _walls: List[Wall]
     _gold_chests: List[GoldChest]
     _heat_sources: List[HeatSource]
+    _portal: Portal
     _validator: LocationValidator
+    _game_over: bool
 
     def __init__(
             self,
@@ -263,21 +280,33 @@ class World:
             player: Player,
             walls: List[Wall],
             gold_chests: List[GoldChest],
-            heat_sources: List[HeatSource]):
+            heat_sources: List[HeatSource],
+            portal: Portal):
         self._width = width
         self._height = height
         self._player = player
         self._walls = walls
         self._gold_chests = gold_chests
         self._heat_sources = heat_sources
+        self._portal = portal
         self._validator = ValidatorComposition(
             [
                 WallColliderValidator(self._walls),
-                RectangleConstraints(self._width, self._height)
+                RectangleConstraints(self._width, self._height),
             ]
         )
+        self._game_over = False
 
     def update(self) -> None:
+
+        portal_rect = make_rectangle(self._portal.location, self._portal.width, self._portal.height)
+        player_rect = self._player.get_rectangle()
+        if rectangles_intersect(player_rect, portal_rect):
+            self._game_over = True
+
+        if self._game_over:
+            return
+
         player_update = self._player.get_update()
         new_player_points = get_rectangle_points(
             make_rectangle(
@@ -293,7 +322,6 @@ class World:
         else:
             self._player.update(player_update)
 
-        player_rect = self._player.get_rectangle()
         for gold_chest in self._gold_chests:
             if not gold_chest.collected and rectangles_intersect(gold_chest.rectangle, player_rect):
                 self._player.add_gold(gold_chest.collect())
@@ -319,9 +347,17 @@ class World:
         return self._walls
 
     @property
-    def gold_chests(self):
+    def gold_chests(self) -> List[GoldChest]:
         return self._gold_chests
 
     @property
-    def heat_sources(self):
+    def heat_sources(self) -> List[HeatSource]:
         return self._heat_sources
+
+    @property
+    def portal(self) -> Portal:
+        return self._portal
+
+    @property
+    def game_over(self) -> bool:
+        return self._game_over

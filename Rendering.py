@@ -2,7 +2,7 @@ import tkinter as tk
 from math import pi, sin, cos
 from typing import Any, Tuple, Dict
 
-from GameObjects import World, Player, RectangleConstraints, RectangleWall, GoldChest, Wall, HeatSource
+from GameObjects import World, Player, RectangleConstraints, RectangleWall, GoldChest, Wall, HeatSource, Portal
 from InputDevice import InputDevice
 from Util import Vector2, Rectangle, make_rectangle
 
@@ -76,6 +76,17 @@ class RenderWorld:
             fill=self._angle_marker_color,
             width=1,
             tag="angle_marker"
+        )
+        self._portal_fig = self._canvas.create_rectangle(
+            *make_unpacked_inverted_rectangle(
+                self._world.portal.location,
+                self._world.portal.width,
+                self._world.portal.height,
+                self._world.height
+            ),
+            fill="blue",
+            width=1,
+            tag=f"portal_fig"
         )
 
         self._walls_figs = {}
@@ -183,7 +194,7 @@ def main():
     heat_sources = [
         HeatSource(1000, Vector2(450, 450))
     ]
-    w = World(width, height, p, walls, gold_chests, heat_sources)
+    w = World(width, height, p, walls, gold_chests, heat_sources, Portal(Vector2(800, 750)))
     m = tk.Tk()
     rw = RenderWorld(w, m)
     rw.loop()
