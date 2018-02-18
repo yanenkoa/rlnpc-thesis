@@ -2,6 +2,8 @@ import tkinter as tk
 from math import pi, sin, cos
 from typing import Any, Tuple, Dict
 
+from pynput.keyboard import Key
+
 from GameObjects import World, Player, RectangleConstraints, RectangleWall, GoldChest, Wall, HeatSource, Portal
 from InputDevice import InputDevice
 from Util import Vector2, Rectangle, make_rectangle
@@ -47,8 +49,10 @@ class RenderWorld:
     _text_x: float = 100
     _text_y: float = 100
 
-    _master: tk.Tk
     _world: World
+    _master: tk.Tk
+    _input_device: InputDevice
+
     _canvas: tk.Canvas
     _player_fig: Any
     _angle_marker_fig: Any
@@ -56,9 +60,12 @@ class RenderWorld:
     _gold_chest_figs: Dict[GoldChest, Any]
     _heat_source_figs: Dict[HeatSource, Any]
 
-    def __init__(self, world: World, master: tk.Tk):
-        self._master = master
+    def __init__(self, world: World, master: tk.Tk, input_device: InputDevice):
+
         self._world = world
+        self._master = master
+        self._input_device = input_device
+
         self._canvas = tk.Canvas(master, width=world.width, height=world.height)
         self._canvas.create_rectangle(
             0, 0, self._world.width, self._world.height,
@@ -159,6 +166,8 @@ class RenderWorld:
 
     def loop(self):
         while True:
+            if self._input_device.is_key_down(Key.esc):
+                break
             self._world.update()
             self._update()
             self._master.update_idletasks()
@@ -196,7 +205,7 @@ def main():
     ]
     w = World(width, height, p, walls, gold_chests, heat_sources, Portal(Vector2(800, 750)))
     m = tk.Tk()
-    rw = RenderWorld(w, m)
+    rw = RenderWorld(w, m, input_device)
     rw.loop()
 
 
