@@ -159,19 +159,22 @@ class RenderWorld:
     def _update(self) -> None:
         self._canvas.coords(self._player_fig, *self._get_player_fig_coords())
         self._canvas.coords(self._angle_marker_fig, *self._get_angle_marker_coords())
-        self._canvas.itemconfig(self._text, text=str(get_player_text(self._world.player)))
+        text = str(get_player_text(self._world.player))
+        if self._world.game_over:
+            text += "\nGame over!"
+        self._canvas.itemconfig(self._text, text=text)
         for gold_chest in self._world.gold_chests:
             if gold_chest.collected:
                 self._canvas.delete(self._gold_chest_figs[gold_chest])
 
     def loop(self):
         while True:
-            if self._input_device.is_key_down(Key.esc):
-                break
             self._world.update()
             self._update()
             self._master.update_idletasks()
             self._master.update()
+            if self._input_device.is_key_down(Key.esc):
+                break
 
 
 def main():
@@ -201,7 +204,7 @@ def main():
         GoldChest(200, Vector2(50,  850)),
     ]
     heat_sources = [
-        HeatSource(1000, Vector2(450, 450))
+        HeatSource(1000, Vector2(450, 450)),
     ]
     w = World(width, height, p, walls, gold_chests, heat_sources, Portal(Vector2(800, 750)))
     m = tk.Tk()
