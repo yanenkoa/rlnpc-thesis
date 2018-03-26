@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum
+import enum
 from math import sin, cos, sqrt, pi
 from typing import List, NamedTuple
 
@@ -175,50 +176,6 @@ class RectangleWall(Wall):
         return str(self._rectangle)
 
 
-class ProximitySensor:
-    _player: Player
-    _angle: float
-    _max_distance: float
-    _walls: List[Wall]
-
-    _point: Vector2
-    _segment: LineSegment
-
-    def __init__(self, player: Player, angle: float, max_distance: float, walls: List[Wall]):
-        self._player = player
-        self._angle = angle
-        self._max_distance = max_distance
-        self._walls = walls
-
-        segment_end = self._get_segment_end()
-        self._point = segment_end
-        self._segment = LineSegment(self._player.position, segment_end)
-
-    def update_point(self) -> None:
-
-        segment_end = self._get_segment_end()
-        self._segment = LineSegment(self._player.position, segment_end)
-
-        min_collision = Collision(False, None)
-        min_distance = float("inf")
-        for wall in self._walls:
-            current_collision = wall.segment_collides(self._segment)
-            if current_collision.intersects:
-                distance = abs(current_collision.point - self._segment.a)
-                if distance < min_distance:
-                    min_collision = current_collision
-                    min_distance = distance
-
-        self._point = min_collision.point if min_distance <= self._max_distance else segment_end
-
-    def _get_segment_end(self) -> Vector2:
-        return self._player.position + Vector2(cos(self._angle), sin(self._angle)) * self._max_distance
-
-    @property
-    def point(self):
-        return self._point
-
-
 class GoldChest:
     width: float = 10
     height: float = 10
@@ -310,6 +267,97 @@ class Portal:
     @property
     def rectangle(self):
         return self._rect
+
+
+class SensedObject(Enum):
+    NONE = enum.auto()
+    WALL = enum.auto()
+    GOLD = enum.auto()
+    PORTAL = enum.auto()
+
+
+class ProximitySensor:
+    _player: Player
+    _angle: float
+    _max_distance: float
+    _walls: List[Wall]
+    _gold_chests: List[GoldChest]
+    _portal: Portal
+
+    _point: Vector2
+    _current_obj: SensedObject
+    _segment: LineSegment
+
+    def __init__(self,
+                 player: Player,
+                 angle: float,
+                 max_distance: float,
+                 walls: List[Wall],
+                 gold_chests: List[GoldChest],
+                 portal: Portal):
+        self._player = player
+        self._angle = angle
+        self._max_distance = max_distance
+        self._walls = walls
+        self._gold_chests = gold_chests
+        self._portal = portal
+
+        segment_end = self._get_segment_end()
+        self._point = segment_end
+        self._current_obj = SensedObject.NONE
+        self._segment = LineSegment(self._player.position, segment_end)
+
+    def update_point(self) -> None:
+
+        segment_end = self._get_segment_end()
+        self._segment = LineSegment(self._player.position, segment_end)
+
+        min_collision = Collision(False, None)
+        min_distance = float("inf")
+        for wall in self._walls:
+            current_collision = wall.segment_collides(self._segment)
+            if current_collision.intersects:
+                distance = abs(current_collision.point - self._segment.a)
+                if distance < min_distance:
+                    min_collision = current_collision
+                    min_distance = distance
+                    self._current_obj = SensedObject.WALL
+
+        for chest in self._gold_chests:
+            if chest.collected:
+                continue
+            current_collision = segment_aabb_intersect(self._segment, chest.rectangle)
+            if current_collision.intersects:
+                distance = abs(current_collision.point - self._segment.a)
+                if distance < min_distance:
+                    min_collision = current_collision
+                    min_distance = distance
+                    self._current_obj = SensedObject.GOLD
+
+        current_collision = segment_aabb_intersect(self._segment, self._portal.rectangle)
+        if current_collision.intersects:
+            distance = abs(current_collision.point - self._segment.a)
+            if distance < min_distance:
+                min_collision = current_collision
+                min_distance = distance
+                self._current_obj = SensedObject.PORTAL
+
+        if min_distance <= self._max_distance:
+            self._point = min_collision.point
+        else:
+            self._point = segment_end
+            self._current_obj = SensedObject.NONE
+
+    def _get_segment_end(self) -> Vector2:
+        return self._player.position + Vector2(cos(self._angle), sin(self._angle)) * self._max_distance
+
+    @property
+    def point(self):
+        return self._point
+
+    @property
+    def sensed_obj(self):
+        return self._current_obj
 
 
 class World:

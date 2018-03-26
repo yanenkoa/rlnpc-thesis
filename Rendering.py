@@ -2,7 +2,7 @@ import tkinter as tk
 from math import sin, cos
 from typing import Any, Tuple, Dict
 
-from GameObjects import World, Player, RectangleWall, GoldChest, Wall, HeatSource, ProximitySensor
+from GameObjects import World, Player, RectangleWall, GoldChest, Wall, HeatSource, ProximitySensor, SensedObject
 from Util import Vector2, RectangleAABB, make_rectangle
 
 UnpackedRectangle = Tuple[float, float, float, float]
@@ -187,6 +187,15 @@ class RenderWorld:
                     self._world.height
                 )
             )
+            if prox_sens.sensed_obj == SensedObject.NONE:
+                color = "grey"
+            elif prox_sens.sensed_obj == SensedObject.WALL:
+                color = "black"
+            elif prox_sens.sensed_obj == SensedObject.GOLD:
+                color = "yellow"
+            elif prox_sens.sensed_obj == SensedObject.PORTAL:
+                color = "blue"
+            self._canvas.itemconfig(self._prox_sens_figs[prox_sens], fill=color)
 
     def update(self):
         self._redraw()

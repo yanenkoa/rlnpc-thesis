@@ -1,6 +1,7 @@
 from math import pi
 from time import time
 
+import numpy as np
 from pynput.keyboard import Key
 
 from GameObjects import World, Player, RectangleWall, GoldChest, HeatSource, Portal, PlayerMovementDirection, \
