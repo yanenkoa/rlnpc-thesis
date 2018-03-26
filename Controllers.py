@@ -29,11 +29,13 @@ class KeyboardController:
     def _get_angle_increment(self, elapsed_time_s: float, clockwise: bool) -> float:
         return self._turn_rate_ps * elapsed_time_s * (-1 if clockwise else 1)
 
-    def _update_player(self) -> None:
-
+    def _get_elapsed_time_s(self) -> float:
         cur_time_s = time()
         elapsed_time_s = cur_time_s - self._last_update_s
         self._last_update_s = cur_time_s
+        return elapsed_time_s
+
+    def _update_player(self, elapsed_time_s) -> None:
 
         if self._input_device.is_key_down("w"):
             self._world.move_player(elapsed_time_s, PlayerMovementDirection.FORWARD)
@@ -54,8 +56,9 @@ class KeyboardController:
 
     def loop(self):
         while True:
-            self._update_player()
-            self._world.update_state()
+            elapsed_time_s = self._get_elapsed_time_s()
+            self._update_player(elapsed_time_s)
+            self._world.update_state(elapsed_time_s)
             self._render_world.update()
             if self._input_device.is_key_down(Key.esc):
                 break

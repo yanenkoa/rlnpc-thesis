@@ -384,7 +384,7 @@ class World:
         else:
             self._player.apply_translation(translation)
 
-    def update_state(self) -> None:
+    def update_state(self, elapsed_time_s: float) -> None:
 
         portal_rect = make_rectangle(self._portal.location, self._portal.width, self._portal.height)
         player_rect = self._player.get_rectangle()
