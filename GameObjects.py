@@ -297,13 +297,19 @@ class Portal:
     height: float = 30
 
     _location: Vector2
+    _rect: RectangleAABB
 
     def __init__(self, location: Vector2):
         self._location = location
+        self._rect = make_rectangle(self._location, self.width, self.height)
 
     @property
     def location(self):
         return self._location
+
+    @property
+    def rectangle(self):
+        return self._rect
 
 
 class World:
@@ -380,13 +386,12 @@ class World:
         )
         for p in new_player_points:
             if not self._validator.is_valid(p):
-                break
-        else:
-            self._player.apply_translation(translation)
+                translation = Vector2(0, 0)
+        self._player.apply_translation(translation)
 
     def update_state(self, elapsed_time_s: float) -> None:
 
-        portal_rect = make_rectangle(self._portal.location, self._portal.width, self._portal.height)
+        portal_rect = self._portal.rectangle
         player_rect = self._player.get_rectangle()
         if rectangles_intersect(player_rect, portal_rect).intersects:
             self._game_over = True
