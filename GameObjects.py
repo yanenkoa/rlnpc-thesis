@@ -54,11 +54,15 @@ class Player:
     width: float = 15.0
     height: float = 15.0
 
+    _reward_loss_ps: float = 0.1
+    _reward_lost_heat_coef: float = 1
+
     _angle: float
     _position: Vector2
     _move_speed_ps: float
     _gold: int
     _heat: float
+    _reward: float
 
     def __init__(self, init_pos: Vector2, init_angle: float, move_speed_ps: float):
         self._position = init_pos
@@ -66,26 +70,31 @@ class Player:
         self._move_speed_ps = move_speed_ps
         self._gold = 0
         self._heat = 0
+        self._reward = 0
 
     def get_translation(self, elapsed_time_s: float, direction: PlayerMovementDirection) -> Vector2:
         dx = cos(self._angle) * self._move_speed_ps * elapsed_time_s * direction.value
         dy = sin(self._angle) * self._move_speed_ps * elapsed_time_s * direction.value
         return Vector2(dx, dy)
 
-    def apply_translation(self, translation: Vector2):
+    def apply_translation(self, translation: Vector2) -> None:
         self._position += translation
 
     def update_angle(self, new_angle: float) -> None:
         self._angle = new_angle
 
     def add_gold(self, gold) -> None:
+        self._reward += gold
         self._gold += gold
 
-    def get_rectangle(self):
+    def get_rectangle(self) -> RectangleAABB:
         return make_rectangle(self._position, self.width, self.height)
 
-    def set_heat(self, heat: float):
+    def set_heat(self, heat: float) -> None:
         self._heat = heat
+
+    def update_reward(self, elapsed_time_s: float) -> None:
+        self._reward -= elapsed_time_s * self._reward_loss_ps
 
     @property
     def angle(self) -> float:
@@ -102,6 +111,10 @@ class Player:
     @property
     def heat(self):
         return self._heat
+
+    @property
+    def reward(self):
+        return self._reward
 
 
 class WallType(Enum):

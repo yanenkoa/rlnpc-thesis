@@ -33,7 +33,7 @@ def make_unpacked_inverted_rectangle(center: Vector2, width, height: float, y_ca
 
 
 def get_player_text(player: Player):
-    return f"Gold: {player.gold}\nHeat: {player.heat}"
+    return f"Gold: {player.gold}\nHeat: {player.heat}\nReward: {player.reward}"
 
 
 class RenderWorld:
