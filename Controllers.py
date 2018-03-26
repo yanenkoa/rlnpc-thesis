@@ -3,7 +3,8 @@ from time import time
 
 from pynput.keyboard import Key
 
-from GameObjects import World, Player, RectangleWall, GoldChest, HeatSource, Portal, PlayerMovementDirection
+from GameObjects import World, Player, RectangleWall, GoldChest, HeatSource, Portal, PlayerMovementDirection, \
+    ProximitySensor
 from InputDevice import InputDevice
 from Rendering import RenderWorld
 from Util import Vector2, RectangleAABB
@@ -92,7 +93,17 @@ def main():
         HeatSource(1000, Vector2(450, 450), walls),
     ]
     turn_rate_ps = pi / 0.8
-    world = World(width, height, p, walls, gold_chests, heat_sources, Portal(Vector2(800, 750)))
+    proximity_sensors = [
+        ProximitySensor(player, 0 * pi / 4, 200, walls),
+        ProximitySensor(player, 1 * pi / 4, 200, walls),
+        ProximitySensor(player, 2 * pi / 4, 200, walls),
+        ProximitySensor(player, 3 * pi / 4, 200, walls),
+        ProximitySensor(player, 4 * pi / 4, 200, walls),
+        ProximitySensor(player, 5 * pi / 4, 200, walls),
+        ProximitySensor(player, 6 * pi / 4, 200, walls),
+        ProximitySensor(player, 7 * pi / 4, 200, walls),
+    ]
+    world = World(width, height, player, walls, gold_chests, heat_sources, Portal(Vector2(800, 750)), proximity_sensors)
     input_device = InputDevice()
     controller = KeyboardController(turn_rate_ps, input_device, world)
     controller.loop()

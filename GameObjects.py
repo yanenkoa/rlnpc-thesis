@@ -332,7 +332,8 @@ class World:
             walls: List[Wall],
             gold_chests: List[GoldChest],
             heat_sources: List[HeatSource],
-            portal: Portal):
+            portal: Portal,
+            proximity_sensors: List[ProximitySensor]):
         self._width = width
         self._height = height
         self._player = player
@@ -356,16 +357,7 @@ class World:
         )
         self._game_over = False
 
-        self._proximity_sensors = [
-            ProximitySensor(self._player, 0 * pi / 4, 200, self._walls),
-            ProximitySensor(self._player, 1 * pi / 4, 200, self._walls),
-            ProximitySensor(self._player, 2 * pi / 4, 200, self._walls),
-            ProximitySensor(self._player, 3 * pi / 4, 200, self._walls),
-            ProximitySensor(self._player, 4 * pi / 4, 200, self._walls),
-            ProximitySensor(self._player, 5 * pi / 4, 200, self._walls),
-            ProximitySensor(self._player, 6 * pi / 4, 200, self._walls),
-            ProximitySensor(self._player, 7 * pi / 4, 200, self._walls),
-        ]
+        self._proximity_sensors = proximity_sensors
 
     def update_player_angle(self, new_angle: float) -> None:
         if not self._game_over:
