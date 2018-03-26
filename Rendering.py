@@ -2,8 +2,8 @@ import tkinter as tk
 from math import sin, cos
 from typing import Any, Tuple, Dict
 
-from GameObjects import World, Player, RectangleWall, GoldChest, Wall, HeatSource
-from Util import Vector2, Rectangle, make_rectangle
+from GameObjects import World, Player, RectangleWall, GoldChest, Wall, HeatSource, ProximitySensor
+from Util import Vector2, RectangleAABB, make_rectangle
 
 UnpackedRectangle = Tuple[float, float, float, float]
 
@@ -12,11 +12,11 @@ def invert_y(v: Vector2, y_cap: float) -> Vector2:
     return Vector2(v.x, y_cap - v.y)
 
 
-def invert_y_rectangle(r: Rectangle, y_cap: float) -> Rectangle:
-    return Rectangle(invert_y(r.lower_left, y_cap), invert_y(r.upper_right, y_cap))
+def invert_y_rectangle(r: RectangleAABB, y_cap: float) -> RectangleAABB:
+    return RectangleAABB(invert_y(r.lower_left, y_cap), invert_y(r.upper_right, y_cap))
 
 
-def unpack_rectangle(r: Rectangle) -> UnpackedRectangle:
+def unpack_rectangle(r: RectangleAABB) -> UnpackedRectangle:
     ll, ur = r
     xll, yll = ll
     xur, yur = ur
@@ -54,6 +54,7 @@ class RenderWorld:
     _walls_figs: Dict[Wall, Any]
     _gold_chest_figs: Dict[GoldChest, Any]
     _heat_source_figs: Dict[HeatSource, Any]
+    _prox_sens_figs: Dict[ProximitySensor, Any]
 
     def __init__(self, world: World):
 
@@ -129,6 +130,21 @@ class RenderWorld:
         self._text = self._canvas.create_text(self._text_x, self._text_y, text=str(get_player_text(self._world.player)))
         self._canvas.pack()
 
+        self._prox_sens_figs = {}
+        for i, prox_sens in enumerate(self._world.proximity_sensors):
+            prox_sens_fig = self._canvas.create_oval(
+                *make_unpacked_inverted_rectangle(
+                    prox_sens.point,
+                    5,
+                    5,
+                    self._world.height
+                ),
+                fill="grey",
+                width=1,
+                tag=f"prox_sens_fig{i}"
+            )
+            self._prox_sens_figs[prox_sens] = prox_sens_fig
+
     def _get_player_fig_coords(self) -> UnpackedRectangle:
         return make_unpacked_inverted_rectangle(
             self._world.player.position,
@@ -161,6 +177,16 @@ class RenderWorld:
         for gold_chest in self._world.gold_chests:
             if gold_chest.collected:
                 self._canvas.delete(self._gold_chest_figs[gold_chest])
+        for prox_sens in self._world.proximity_sensors:
+            self._canvas.coords(
+                self._prox_sens_figs[prox_sens],
+                make_unpacked_inverted_rectangle(
+                    prox_sens.point,
+                    5,
+                    5,
+                    self._world.height
+                )
+            )
 
     def update(self):
         self._redraw()

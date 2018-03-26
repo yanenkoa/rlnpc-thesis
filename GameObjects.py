@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from math import sin, cos
+from math import sin, cos, sqrt, pi
 from typing import List, NamedTuple
 
-from Util import Vector2, Rectangle, get_rectangle_points, point_in_rectangle_points, make_rectangle, \
-    rectangles_intersect
+from Util import Vector2, RectangleAABB, get_rectangle_points, make_rectangle, rectangles_intersect, \
+    point_in_rectangle_aabb, RectangleCollision, Ray, Collision, ray_rectangle_aabb_intersect, LineSegment, \
+    segment_aabb_intersect
 
 
 class LocationValidator(ABC):
@@ -113,6 +114,12 @@ class Wall(ABC):
     def point_collides(self, point: Vector2) -> bool: pass
 
     @abstractmethod
+    def ray_collides(self, ray: Ray) -> Collision: pass
+
+    @abstractmethod
+    def segment_collides(self, line_segment: LineSegment) -> Collision: pass
+
+    @abstractmethod
     def get_type(self) -> WallType: pass
 
 
@@ -122,7 +129,7 @@ class WallColliderValidator(LocationValidator):
     def __init__(self, walls: List[Wall]):
         self._walls = walls
 
-    def is_valid(self, point: Vector2):
+    def is_valid(self, point: Vector2) -> bool:
         for wall in self._walls:
             if wall.point_collides(point):
                 return False
@@ -130,13 +137,19 @@ class WallColliderValidator(LocationValidator):
 
 
 class RectangleWall(Wall):
-    _rectangle: Rectangle
+    _rectangle: RectangleAABB
 
-    def __init__(self, rectangle: Rectangle):
+    def __init__(self, rectangle: RectangleAABB):
         self._rectangle = rectangle
 
     def point_collides(self, point: Vector2) -> bool:
-        return point_in_rectangle_points(point, get_rectangle_points(self._rectangle))
+        return point_in_rectangle_aabb(point, self._rectangle)
+
+    def ray_collides(self, ray: Ray) -> Collision:
+        return ray_rectangle_aabb_intersect(ray, self._rectangle)
+
+    def segment_collides(self, line_segment: LineSegment) -> Collision:
+        return segment_aabb_intersect(line_segment, self._rectangle)
 
     def get_type(self) -> WallType:
         return WallType.RECTANGLE
@@ -144,6 +157,53 @@ class RectangleWall(Wall):
     @property
     def rectangle(self):
         return self._rectangle
+
+    def __str__(self):
+        return str(self._rectangle)
+
+
+class ProximitySensor:
+    _player: Player
+    _angle: float
+    _max_distance: float
+    _walls: List[Wall]
+
+    _point: Vector2
+    _segment: LineSegment
+
+    def __init__(self, player: Player, angle: float, max_distance: float, walls: List[Wall]):
+        self._player = player
+        self._angle = angle
+        self._max_distance = max_distance
+        self._walls = walls
+
+        segment_end = self._get_segment_end()
+        self._point = segment_end
+        self._segment = LineSegment(self._player.position, segment_end)
+
+    def update_point(self) -> None:
+
+        segment_end = self._get_segment_end()
+        self._segment = LineSegment(self._player.position, segment_end)
+
+        min_collision = Collision(False, None)
+        min_distance = float("inf")
+        for wall in self._walls:
+            current_collision = wall.segment_collides(self._segment)
+            if current_collision.intersects:
+                distance = abs(current_collision.point - self._segment.a)
+                if distance < min_distance:
+                    min_collision = current_collision
+                    min_distance = distance
+
+        self._point = min_collision.point if min_distance <= self._max_distance else segment_end
+
+    def _get_segment_end(self) -> Vector2:
+        return self._player.position + Vector2(cos(self._angle), sin(self._angle)) * self._max_distance
+
+    @property
+    def point(self):
+        return self._point
 
 
 class GoldChest:
@@ -153,7 +213,7 @@ class GoldChest:
     _collected: bool = False
     _gold: int
     _location: Vector2
-    _rectangle: Rectangle
+    _rectangle: RectangleAABB
 
     def __init__(self, gold: int, location: Vector2):
         self._gold = gold
@@ -232,6 +292,7 @@ class World:
     _portal: Portal
     _validator: LocationValidator
     _game_over: bool
+    _proximity_sensors: List[ProximitySensor]
 
     def __init__(
             self,
@@ -249,6 +310,14 @@ class World:
         self._gold_chests = gold_chests
         self._heat_sources = heat_sources
         self._portal = portal
+
+        left_wall = RectangleWall(RectangleAABB(Vector2(-100, 0), Vector2(0, height)))
+        top_wall = RectangleWall(RectangleAABB(Vector2(0, height), Vector2(width, height + 100)))
+        right_wall = RectangleWall(RectangleAABB(Vector2(width, 0), Vector2(width + 100, height)))
+        bottom_wall = RectangleWall(RectangleAABB(Vector2(0, -100), Vector2(width, 0)))
+
+        self._walls.extend([left_wall, top_wall, right_wall, bottom_wall])
+
         self._validator = ValidatorComposition(
             [
                 WallColliderValidator(self._walls),
@@ -256,6 +325,17 @@ class World:
             ]
         )
         self._game_over = False
+
+        self._proximity_sensors = [
+            ProximitySensor(self._player, 0 * pi / 4, 200, self._walls),
+            ProximitySensor(self._player, 1 * pi / 4, 200, self._walls),
+            ProximitySensor(self._player, 2 * pi / 4, 200, self._walls),
+            ProximitySensor(self._player, 3 * pi / 4, 200, self._walls),
+            ProximitySensor(self._player, 4 * pi / 4, 200, self._walls),
+            ProximitySensor(self._player, 5 * pi / 4, 200, self._walls),
+            ProximitySensor(self._player, 6 * pi / 4, 200, self._walls),
+            ProximitySensor(self._player, 7 * pi / 4, 200, self._walls),
+        ]
 
     def update_player_angle(self, new_angle: float) -> None:
         if not self._game_over:
@@ -284,19 +364,24 @@ class World:
 
         portal_rect = make_rectangle(self._portal.location, self._portal.width, self._portal.height)
         player_rect = self._player.get_rectangle()
-        if rectangles_intersect(player_rect, portal_rect):
+        if rectangles_intersect(player_rect, portal_rect).intersects:
             self._game_over = True
 
         if self._game_over:
             return
 
         for gold_chest in self._gold_chests:
-            if not gold_chest.collected and rectangles_intersect(gold_chest.rectangle, player_rect):
+            if not gold_chest.collected and rectangles_intersect(gold_chest.rectangle, player_rect).intersects:
                 self._player.add_gold(gold_chest.collect())
 
         player_pos = self._player.position
         heat = sum(hs.get_heat(player_pos) for hs in self._heat_sources)
         self._player.set_heat(heat)
+
+        for prox_sens in self._proximity_sensors:
+            prox_sens.update_point()
+
+        self._player.update_reward(elapsed_time_s)
 
     @property
     def player(self) -> Player:
@@ -329,3 +414,7 @@ class World:
     @property
     def game_over(self) -> bool:
         return self._game_over
+
+    @property
+    def proximity_sensors(self):
+        return self._proximity_sensors

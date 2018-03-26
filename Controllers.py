@@ -6,7 +6,7 @@ from pynput.keyboard import Key
 from GameObjects import World, Player, RectangleWall, GoldChest, HeatSource, Portal, PlayerMovementDirection
 from InputDevice import InputDevice
 from Rendering import RenderWorld
-from Util import Vector2, Rectangle
+from Util import Vector2, RectangleAABB
 
 
 class KeyboardController:
