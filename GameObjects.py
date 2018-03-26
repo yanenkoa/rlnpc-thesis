@@ -259,13 +259,24 @@ class HeatSource:
 
     _heat: float
     _location: Vector2
+    _walls: List[Wall]
+
     _radius: float = 5
 
-    def __init__(self, heat: float, location: Vector2):
+    def __init__(self, heat: float, location: Vector2, walls: List[Wall]):
         self._heat = heat
         self._location = location
+        self._walls = walls
 
     def get_heat(self, other_location: Vector2):
+
+        segment_to = LineSegment(self._location, other_location)
+        print(segment_to)
+        for wall in self._walls:
+            if wall.segment_collides(segment_to).intersects:
+                print(wall)
+                return 0
+
         distance2 = (other_location.x - self._location.x) ** 2 + (other_location.y - self._location.y) ** 2
         if distance2 <= self._radius ** 2:
             return self._heat

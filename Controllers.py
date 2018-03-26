@@ -86,7 +86,7 @@ def main():
         GoldChest(200, Vector2(50, 850)),
     ]
     heat_sources = [
-        HeatSource(1000, Vector2(450, 450)),
+        HeatSource(1000, Vector2(450, 450), walls),
     ]
     turn_rate_ps = pi / 0.8
     world = World(width, height, p, walls, gold_chests, heat_sources, Portal(Vector2(800, 750)))
