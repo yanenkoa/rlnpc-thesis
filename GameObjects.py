@@ -1,11 +1,11 @@
+import enum
 from abc import ABC, abstractmethod
 from enum import Enum
-import enum
-from math import sin, cos, sqrt, pi
+from math import sin, cos
 from typing import List, NamedTuple
 
 from Util import Vector2, RectangleAABB, get_rectangle_points, make_rectangle, rectangles_intersect, \
-    point_in_rectangle_aabb, RectangleCollision, Ray, Collision, ray_rectangle_aabb_intersect, LineSegment, \
+    point_in_rectangle_aabb, Ray, Collision, ray_rectangle_aabb_intersect, LineSegment, \
     segment_aabb_intersect
 
 

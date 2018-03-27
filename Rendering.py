@@ -2,7 +2,7 @@ import tkinter as tk
 from math import sin, cos
 from typing import Any, Tuple, Dict
 
-from GameObjects import World, Player, RectangleWall, GoldChest, Wall, HeatSource, ProximitySensor, SensedObject
+from GameObjects import World, RectangleWall, GoldChest, Wall, HeatSource, ProximitySensor, SensedObject
 from Util import Vector2, RectangleAABB, make_rectangle
 
 UnpackedRectangle = Tuple[float, float, float, float]

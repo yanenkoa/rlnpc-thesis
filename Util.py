@@ -1,5 +1,5 @@
-from typing import NamedTuple, Optional
 from math import sin, cos, sqrt
+from typing import NamedTuple, Optional
 
 
 class Vector2:
