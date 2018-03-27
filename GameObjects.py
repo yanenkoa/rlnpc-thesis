@@ -244,10 +244,8 @@ class HeatSource:
     def get_heat(self, other_location: Vector2):
 
         segment_to = LineSegment(self._location, other_location)
-        print(segment_to)
         for wall in self._walls:
             if wall.segment_collides(segment_to).intersects:
-                print(wall)
                 return 0
 
         distance2 = (other_location.x - self._location.x) ** 2 + (other_location.y - self._location.y) ** 2
@@ -453,7 +451,6 @@ class World:
 
     def update_state(self, elapsed_time_s: float) -> None:
 
-        print(self._player.position)
         portal_rect = self._portal.rectangle
         player_rect = self._player.get_rectangle()
         if rectangles_intersect(player_rect, portal_rect).intersects:
@@ -476,7 +473,6 @@ class World:
         self._player.update_reward(elapsed_time_s)
 
     def reset(self) -> None:
-        print("resetting")
         self._game_over = False
         self._player.reset()
         for chest in self._gold_chests:

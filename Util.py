@@ -162,8 +162,6 @@ def line_segments_intersect(s1: LineSegment, s2: LineSegment) -> Collision:
 
 def ray_segment_intersect(ray: Ray, a: Vector2, b: Vector2) -> Collision:
 
-    c = b - a
-
     o = ray.origin
     d = Vector2(cos(ray.angle), sin(ray.angle))
     c = b - a
@@ -173,7 +171,6 @@ def ray_segment_intersect(ray: Ray, a: Vector2, b: Vector2) -> Collision:
 
     intersects = t1 >= 0 and 0 <= t2 <= 1
     point = ray.origin + d * t1 if intersects else None
-    # print(point)
 
     return Collision(intersects, point)
 
