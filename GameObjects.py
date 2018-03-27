@@ -58,6 +58,8 @@ class Player:
     _reward_loss_ps: float = 0.1
     _reward_lost_heat_coef: float = 1
 
+    _init_angle: float
+    _init_position: Vector2
     _angle: float
     _position: Vector2
     _move_speed_ps: float
@@ -66,8 +68,9 @@ class Player:
     _reward: float
 
     def __init__(self, init_pos: Vector2, init_angle: float, move_speed_ps: float):
-        self._position = init_pos
-        self._angle = init_angle
+        self._init_angle = self._angle = init_angle
+        self._init_position = init_pos
+        self._position = Vector2(init_pos.x, init_pos.y)
         self._move_speed_ps = move_speed_ps
         self._gold = 0
         self._heat = 0
@@ -95,7 +98,17 @@ class Player:
         self._heat = heat
 
     def update_reward(self, elapsed_time_s: float) -> None:
-        self._reward -= elapsed_time_s * self._reward_loss_ps
+        self._reward -= elapsed_time_s * (self._reward_loss_ps + self._heat * self._reward_lost_heat_coef)
+
+    def reset_after_step(self) -> None:
+        self._reward = 0
+
+    def reset(self) -> None:
+        self._angle = self._init_angle
+        self._position = Vector2(self._init_position.x, self._init_position.y)
+        self._gold = 0
+        self._heat = 0
+        self._reward = 0
 
     @property
     def angle(self) -> float:
@@ -193,6 +206,9 @@ class GoldChest:
     def collect(self) -> int:
         self._collected = True
         return self._gold
+
+    def reset(self) -> None:
+        self._collected = False
 
     @property
     def location(self):
@@ -351,6 +367,12 @@ class ProximitySensor:
     def _get_segment_end(self) -> Vector2:
         return self._player.position + Vector2(cos(self._angle), sin(self._angle)) * self._max_distance
 
+    def reset(self) -> None:
+        segment_end = self._get_segment_end()
+        self._point = segment_end
+        self._current_obj = SensedObject.NONE
+        self._segment = LineSegment(self._player.position, segment_end)
+
     @property
     def point(self):
         return self._point
@@ -431,6 +453,7 @@ class World:
 
     def update_state(self, elapsed_time_s: float) -> None:
 
+        print(self._player.position)
         portal_rect = self._portal.rectangle
         player_rect = self._player.get_rectangle()
         if rectangles_intersect(player_rect, portal_rect).intersects:
@@ -451,6 +474,15 @@ class World:
             prox_sens.update_point()
 
         self._player.update_reward(elapsed_time_s)
+
+    def reset(self) -> None:
+        print("resetting")
+        self._game_over = False
+        self._player.reset()
+        for chest in self._gold_chests:
+            chest.reset()
+        for sensor in self._proximity_sensors:
+            sensor.reset()
 
     @property
     def player(self) -> Player:

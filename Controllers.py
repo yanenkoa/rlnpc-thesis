@@ -56,8 +56,18 @@ class KeyboardController:
         new_angle = self._player.angle + angle_increment
         self._world.update_player_angle(new_angle)
 
+    def start_rendering(self) -> None:
+        if self._input_device.is_key_down("v"):
+            self._render_world.start_drawing()
+
+    def reset(self) -> None:
+        if self._input_device.is_key_down("r"):
+            self._world.reset()
+
     def loop(self):
         while True:
+            self.reset()
+            self.start_rendering()
             elapsed_time_s = self._get_elapsed_time_s()
             self._update_player(elapsed_time_s)
             self._world.update_state(elapsed_time_s)

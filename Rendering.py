@@ -32,11 +32,15 @@ def make_unpacked_inverted_rectangle(center: Vector2, width, height: float, y_ca
     )
 
 
-def get_player_text(player: Player):
-    return f"Gold: {player.gold}\nHeat: {player.heat}\nReward: {player.reward}"
+def get_player_text(world: World):
+    player = world.player
+    return (
+        f'Gold: {player.gold}\nHeat: {player.heat}\nReward: {player.reward}\n{"Game over!" if world.game_over else ""}'
+    )
 
 
 class RenderWorld:
+    _started: bool
     _player_color: str = "green"
     _angle_marker_bias: float = 30
     _angle_marker_width: float = 5
@@ -58,6 +62,7 @@ class RenderWorld:
 
     def __init__(self, world: World):
 
+        self._started = False
         self._world = world
 
         self._master = tk.Tk()
@@ -127,8 +132,7 @@ class RenderWorld:
             )
             self._heat_source_figs[heat_source] = heat_source_fig
 
-        self._text = self._canvas.create_text(self._text_x, self._text_y, text=str(get_player_text(self._world.player)))
-        self._canvas.pack()
+        self._text = self._canvas.create_text(self._text_x, self._text_y, text=str(get_player_text(self._world)))
 
         self._prox_sens_figs = {}
         for i, prox_sens in enumerate(self._world.proximity_sensors):
@@ -167,16 +171,30 @@ class RenderWorld:
             self._world.height
         )
 
+    def start_drawing(self) -> None:
+        if not self._started:
+            self._started = True
+            self._canvas.pack()
+
     def _redraw(self) -> None:
         self._canvas.coords(self._player_fig, *self._get_player_fig_coords())
         self._canvas.coords(self._angle_marker_fig, *self._get_angle_marker_coords())
-        text = str(get_player_text(self._world.player))
-        if self._world.game_over:
-            text += "\nGame over!"
+        text = str(get_player_text(self._world))
         self._canvas.itemconfig(self._text, text=text)
-        for gold_chest in self._world.gold_chests:
-            if gold_chest.collected:
+        for i, gold_chest in enumerate(self._world.gold_chests):
+            if gold_chest.collected and gold_chest in self._gold_chest_figs:
                 self._canvas.delete(self._gold_chest_figs[gold_chest])
+                self._gold_chest_figs.pop(gold_chest)
+            if not gold_chest.collected and gold_chest not in self._gold_chest_figs:
+                gold_chest_fig = self._canvas.create_rectangle(
+                    *make_unpacked_inverted_rectangle(
+                        gold_chest.location, gold_chest.width, gold_chest.height, self._world.height
+                    ),
+                    fill="yellow",
+                    width=1,
+                    tag=f"gold_chest_fig_{i}"
+                )
+                self._gold_chest_figs[gold_chest] = gold_chest_fig
         for prox_sens in self._world.proximity_sensors:
             self._canvas.coords(
                 self._prox_sens_figs[prox_sens],
@@ -195,9 +213,13 @@ class RenderWorld:
                 color = "yellow"
             elif prox_sens.sensed_obj == SensedObject.PORTAL:
                 color = "blue"
+            else:
+                raise ValueError("sensed_obj is fucked up")
             self._canvas.itemconfig(self._prox_sens_figs[prox_sens], fill=color)
 
     def update(self):
+        if not self._started:
+            return
         self._redraw()
         self._master.update_idletasks()
         self._master.update()
