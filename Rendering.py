@@ -2,7 +2,7 @@ import tkinter as tk
 from math import sin, cos
 from typing import Any, Tuple, Dict
 
-from GameObjects import World, RectangleWall, GoldChest, Wall, HeatSource, ProximitySensor, SensedObject
+from GameObjects import World, RectangleWall, GoldChest, Wall, HeatSource, SensedObject
 from Util import Vector2, RectangleAABB, make_rectangle
 
 UnpackedRectangle = Tuple[float, float, float, float]
@@ -58,7 +58,7 @@ class RenderWorld:
     _walls_figs: Dict[Wall, Any]
     _gold_chest_figs: Dict[GoldChest, Any]
     _heat_source_figs: Dict[HeatSource, Any]
-    _prox_sens_figs: Dict[ProximitySensor, Any]
+    _prox_sens_figs: Dict[int, Any]
 
     def __init__(self, world: World):
 
@@ -135,10 +135,11 @@ class RenderWorld:
         self._text = self._canvas.create_text(self._text_x, self._text_y, text=str(get_player_text(self._world)))
 
         self._prox_sens_figs = {}
-        for i, prox_sens in enumerate(self._world.proximity_sensors):
+        points = self._world.proximity_sensors_np.get_points()
+        for i in range(points.shape[0]):
             prox_sens_fig = self._canvas.create_oval(
                 *make_unpacked_inverted_rectangle(
-                    prox_sens.point,
+                    Vector2(points[i, 0], points[i, 1]),
                     5,
                     5,
                     self._world.height
@@ -147,7 +148,7 @@ class RenderWorld:
                 width=1,
                 tag=f"prox_sens_fig{i}"
             )
-            self._prox_sens_figs[prox_sens] = prox_sens_fig
+            self._prox_sens_figs[i] = prox_sens_fig
 
     def _get_player_fig_coords(self) -> UnpackedRectangle:
         return make_unpacked_inverted_rectangle(
@@ -195,27 +196,29 @@ class RenderWorld:
                     tag=f"gold_chest_fig_{i}"
                 )
                 self._gold_chest_figs[gold_chest] = gold_chest_fig
-        for prox_sens in self._world.proximity_sensors:
+        points = self._world.proximity_sensors_np.get_points()
+        senses = self._world.proximity_sensors_np.get_sensed_objs()
+        for i in range(points.shape[0]):
             self._canvas.coords(
-                self._prox_sens_figs[prox_sens],
+                self._prox_sens_figs[i],
                 make_unpacked_inverted_rectangle(
-                    prox_sens.point,
+                    Vector2(points[i, 0], points[i, 1]),
                     5,
                     5,
                     self._world.height
                 )
             )
-            if prox_sens.sensed_obj == SensedObject.NONE:
+            if senses[i] == SensedObject.NONE.value:
                 color = "grey"
-            elif prox_sens.sensed_obj == SensedObject.WALL:
+            elif senses[i] == SensedObject.WALL.value:
                 color = "black"
-            elif prox_sens.sensed_obj == SensedObject.GOLD:
+            elif senses[i] == SensedObject.GOLD.value:
                 color = "yellow"
-            elif prox_sens.sensed_obj == SensedObject.PORTAL:
+            elif senses[i] == SensedObject.PORTAL.value:
                 color = "blue"
             else:
                 raise ValueError("sensed_obj is fucked up")
-            self._canvas.itemconfig(self._prox_sens_figs[prox_sens], fill=color)
+            self._canvas.itemconfig(self._prox_sens_figs[i], fill=color)
 
     def update(self):
         if not self._started:

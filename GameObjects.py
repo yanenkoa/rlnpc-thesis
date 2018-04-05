@@ -2,11 +2,13 @@ import enum
 from abc import ABC, abstractmethod
 from enum import Enum
 from math import sin, cos
-from typing import List, NamedTuple
+from typing import List, NamedTuple, Tuple
+
+import numpy as np
 
 from Util import Vector2, RectangleAABB, get_rectangle_points, make_rectangle, rectangles_intersect, \
     point_in_rectangle_aabb, Ray, Collision, ray_rectangle_aabb_intersect, LineSegment, \
-    segment_aabb_intersect
+    segment_aabb_intersect, LineSegments, np_line_segments_intersect
 
 
 class LocationValidator(ABC):
@@ -290,6 +292,153 @@ class SensedObject(Enum):
     PORTAL = enum.auto()
 
 
+class ProximitySensors:
+    _player: Player
+    _angles: np.ndarray
+    _max_distance: float
+    _walls: List[RectangleWall]
+    _gold_chests: List[GoldChest]
+    _portal: Portal
+
+    _n_sensors: int
+    _end_biases_units: np.ndarray
+    _player_loc_np: np.ndarray
+    _points_np: np.ndarray
+    _current_objects: np.ndarray
+    _distances: np.ndarray
+    _wall_segments: LineSegments
+    _chest_segments: LineSegments
+    _portal_segments: LineSegments
+    _sensor_segments: LineSegments
+
+    def __init__(self,
+                 player: Player,
+                 angles: np.ndarray,
+                 max_distance: float,
+                 walls: List[RectangleWall],
+                 gold_chests: List[GoldChest],
+                 portal: Portal):
+        self._player = player
+        self._angles = angles
+        self._max_distance = max_distance
+        self._walls = walls
+        self._gold_chests = gold_chests
+        self._portal = portal
+
+        self._n_sensors = angles.size
+        player_loc = self._player.position
+        self._end_biases_units = np.vstack((np.cos(self._angles), np.sin(self._angles))).T
+        self._player_loc_np = np.array([player_loc.x, player_loc.y], dtype=np.float32)
+        self._points_np = np.zeros(shape=(self._n_sensors, 2), dtype=np.float32)
+        self._current_objects = np.zeros(shape=(self._n_sensors,), dtype=np.int32)
+        self._current_objects[:] = SensedObject.NONE.value
+        self._wall_segments = LineSegments(
+            np.empty(shape=(self._n_sensors * len(self._walls) * 4, 2), dtype=np.float32),
+            np.empty(shape=(self._n_sensors * len(self._walls) * 4, 2), dtype=np.float32),
+        )
+        self._chest_segments = LineSegments(
+            np.empty(shape=(self._n_sensors * len(self._gold_chests) * 4, 2), dtype=np.float32),
+            np.empty(shape=(self._n_sensors * len(self._gold_chests) * 4, 2), dtype=np.float32),
+        )
+        self._portal_segments = LineSegments(
+            np.empty(shape=(self._n_sensors * 4, 2), dtype=np.float32),
+            np.empty(shape=(self._n_sensors * 4, 2), dtype=np.float32),
+        )
+        self._sensor_segments = LineSegments(
+            np.empty(shape=(self._n_sensors, 2), dtype=np.float32),
+            np.empty(shape=(self._n_sensors, 2), dtype=np.float32),
+        )
+        self._init_segments()
+
+    @staticmethod
+    def _get_rect_segments_np(rect: RectangleAABB) -> Tuple[np.ndarray, np.ndarray]:
+        points = get_rectangle_points(rect)
+        first_points = np.array([
+            [points.lower_left.x, points.lower_left.y],
+            [points.lower_right.x, points.lower_right.y],
+            [points.upper_right.x, points.upper_right.y],
+            [points.upper_left.x, points.upper_left.y],
+        ])
+        second_points = np.array([
+            [points.lower_right.x, points.lower_right.y],
+            [points.upper_right.x, points.upper_right.y],
+            [points.upper_left.x, points.upper_left.y],
+            [points.lower_left.x, points.lower_left.y],
+        ])
+        return first_points, second_points
+
+    @staticmethod
+    def _loop_array(arr: np.ndarray, pre_loop_size: int) -> None:
+        size = arr.shape[0]
+        indices = np.arange(size) % pre_loop_size
+        arr[:] = arr[indices, :]
+
+    def _reset_sensor_segments(self) -> None:
+        self._sensor_segments.first_points[:] = self._player_loc_np
+        end_biases = self._end_biases_units * self._max_distance
+        self._sensor_segments.second_points[:] = end_biases + self._player_loc_np
+
+    def _init_segments(self) -> None:
+        for i, wall in enumerate(self._walls):
+            indices = np.arange(i * 4, i * 4 + 4)
+            fp, sp = self._get_rect_segments_np(wall.rectangle)
+            self._wall_segments.first_points[indices, :] = fp
+            self._wall_segments.second_points[indices, :] = sp
+        self._loop_array(self._wall_segments.first_points, len(self._walls) * 4)
+        self._loop_array(self._wall_segments.second_points, len(self._walls) * 4)
+
+        for i, chest in enumerate(self._gold_chests):
+            indices = np.arange(i * 4, i * 4 + 4)
+            fp, sp = self._get_rect_segments_np(chest.rectangle)
+            self._chest_segments.first_points[indices, :] = fp
+            self._chest_segments.second_points[indices, :] = sp
+        self._loop_array(self._chest_segments.first_points, len(self._gold_chests) * 4)
+        self._loop_array(self._chest_segments.second_points, len(self._gold_chests) * 4)
+
+        indices = np.arange(4)
+        fp, sp = self._get_rect_segments_np(self._portal.rectangle)
+        self._portal_segments.first_points[indices, :] = fp
+        self._portal_segments.second_points[indices, :] = sp
+        self._loop_array(self._portal_segments.first_points, 4)
+        self._loop_array(self._portal_segments.second_points, 4)
+
+        self._reset_sensor_segments()
+        self._points_np[:] = self._sensor_segments.second_points
+
+    def get_points(self) -> np.ndarray:
+        return self._points_np
+
+    def get_sensed_objs(self) -> np.ndarray:
+        return self._current_objects
+
+    def update(self) -> None:
+
+        x, y = self._player.position
+        self._player_loc_np[0] = x
+        self._player_loc_np[1] = y
+        self._reset_sensor_segments()
+
+        indices = np.tile(np.arange(self._n_sensors), (4 * len(self._walls), 1)).T.flatten()
+        comparing_segments = LineSegments(
+            self._sensor_segments.first_points[indices],
+            self._sensor_segments.second_points[indices]
+        )
+        c = np_line_segments_intersect(comparing_segments, self._wall_segments)
+        intersects = c.intersect_indicators.reshape((self._n_sensors, 4 * len(self._walls)))
+        points = c.points.reshape((self._n_sensors, 4 * len(self._walls), 2))
+        norms = np.linalg.norm(points - self._player_loc_np, axis=2)
+        norms[np.logical_not(intersects)] = np.inf
+        max_norms = np.min(norms, axis=1)
+        max_norms[np.isinf(max_norms)] = self._max_distance
+
+        self._points_np = self._player_loc_np + self._end_biases_units * max_norms.reshape((self._n_sensors, 1))
+
+    def reset(self):
+        self._reset_sensor_segments()
+        self._points_np[:] = self._sensor_segments.second_points
+        self._current_objects[:] = SensedObject.NONE.value
+
+
 class ProximitySensor:
     _player: Player
     _angle: float
@@ -390,7 +539,7 @@ class World:
     _portal: Portal
     _validator: LocationValidator
     _game_over: bool
-    _proximity_sensors: List[ProximitySensor]
+    _proximity_sensors_np: ProximitySensors
 
     def __init__(
             self,
@@ -401,7 +550,7 @@ class World:
             gold_chests: List[GoldChest],
             heat_sources: List[HeatSource],
             portal: Portal,
-            proximity_sensors: List[ProximitySensor]):
+            proximity_sensors_np: ProximitySensors):
         self._width = width
         self._height = height
         self._player = player
@@ -409,13 +558,6 @@ class World:
         self._gold_chests = gold_chests
         self._heat_sources = heat_sources
         self._portal = portal
-
-        left_wall = RectangleWall(RectangleAABB(Vector2(-100, 0), Vector2(0, height)))
-        top_wall = RectangleWall(RectangleAABB(Vector2(0, height), Vector2(width, height + 100)))
-        right_wall = RectangleWall(RectangleAABB(Vector2(width, 0), Vector2(width + 100, height)))
-        bottom_wall = RectangleWall(RectangleAABB(Vector2(0, -100), Vector2(width, 0)))
-
-        self._walls.extend([left_wall, top_wall, right_wall, bottom_wall])
 
         self._validator = ValidatorComposition(
             [
@@ -425,7 +567,7 @@ class World:
         )
         self._game_over = False
 
-        self._proximity_sensors = proximity_sensors
+        self._proximity_sensors_np = proximity_sensors_np
 
     def update_player_angle(self, new_angle: float) -> None:
         if not self._game_over:
@@ -467,8 +609,7 @@ class World:
         heat = sum(hs.get_heat(player_pos) for hs in self._heat_sources)
         self._player.set_heat(heat)
 
-        for prox_sens in self._proximity_sensors:
-            prox_sens.update_point()
+        self._proximity_sensors_np.update()
 
         self._player.update_reward(elapsed_time_s)
 
@@ -477,8 +618,7 @@ class World:
         self._player.reset()
         for chest in self._gold_chests:
             chest.reset()
-        for sensor in self._proximity_sensors:
-            sensor.reset()
+        self._proximity_sensors_np.reset()
 
     @property
     def player(self) -> Player:
@@ -513,5 +653,9 @@ class World:
         return self._game_over
 
     @property
-    def proximity_sensors(self):
+    def proximity_sensors(self) -> List[ProximitySensor]:
         return self._proximity_sensors
+
+    @property
+    def proximity_sensors_np(self) -> ProximitySensors:
+        return self._proximity_sensors_np

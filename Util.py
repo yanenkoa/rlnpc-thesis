@@ -1,6 +1,8 @@
 from math import sin, cos, sqrt
 from typing import NamedTuple, Optional
 
+import numpy as np
+
 
 class Vector2:
     x: float
@@ -46,8 +48,16 @@ def dot(v1: Vector2, v2: Vector2) -> float:
     return v1.x * v2.x + v1.y * v2.y
 
 
+def dots(v1s: np.ndarray, v2s: np.ndarray) -> np.ndarray:
+    return v1s[:, 0] * v2s[:, 0] + v1s[:, 1] + v2s[:, 1]
+
+
 def cross(v1: Vector2, v2: Vector2) -> float:
     return v1.x * v2.y - v1.y * v2.x
+
+
+def crosses(v1s: np.ndarray, v2s: np.ndarray) -> np.ndarray:
+    return v1s[:, 0] * v2s[:, 1] - v1s[:, 1] * v2s[:, 0]
 
 
 class Ray(NamedTuple):
@@ -132,7 +142,6 @@ class Collision(NamedTuple):
 
 
 def line_segments_intersect(s1: LineSegment, s2: LineSegment) -> Collision:
-
     p = s1.a
     r = s1.b - s1.a
     q = s2.a
@@ -160,8 +169,72 @@ def line_segments_intersect(s1: LineSegment, s2: LineSegment) -> Collision:
     return Collision(intersects, point)
 
 
-def ray_segment_intersect(ray: Ray, a: Vector2, b: Vector2) -> Collision:
+class LineSegments(NamedTuple):
+    first_points: np.ndarray
+    second_points: np.ndarray
 
+
+class Collisions(NamedTuple):
+    intersect_indicators: np.ndarray
+    points: np.ndarray
+
+
+def np_line_segments_intersect(s1: LineSegments, s2: LineSegments) -> Collisions:
+    p = s1.first_points
+    r = s1.second_points - s1.first_points
+    q = s2.first_points
+    s = s2.second_points - s2.first_points
+
+    output_shape = (s1.first_points.shape[0], 2)
+    cross_r_s = np.reshape(crosses(r, s), (output_shape[0],))
+    cross_q_p_r = np.reshape(crosses(q - p, r), (output_shape[0],))
+    cross_q_p_s = np.reshape(crosses(q - p, s), (output_shape[0],))
+
+    intersect_indicators = np.zeros(shape=(output_shape[0],), dtype=np.bool)
+    points = np.zeros(shape=output_shape, dtype=np.float32)
+
+    normal_indices = cross_r_s != 0
+
+    normal_r_s = cross_r_s[normal_indices]
+    normal_q_p_r = cross_q_p_r[normal_indices]
+    normal_q_p_s = cross_q_p_s[normal_indices]
+    t = normal_q_p_s / normal_r_s
+    u = normal_q_p_r / normal_r_s
+
+    sub_intersecting = np.logical_and(
+        np.logical_and(0 <= t, t <= 1),
+        np.logical_and(0 <= u, u <= 1)
+    )
+    intersect_indicators[normal_indices] = sub_intersecting
+    if np.any(intersect_indicators):
+        t_s = t[sub_intersecting]
+        points[intersect_indicators] = p[intersect_indicators] + r[intersect_indicators] * t_s.reshape((t_s.size, 1))
+
+    # cross_r_s_zero = np.logical_not(normal_indices)
+    # still_normal = np.logical_and(cross_r_s_zero, cross_q_p_r == 0)
+    # q_sn = q[still_normal]
+    # p_sn = p[still_normal]
+    # s_sn = s[still_normal]
+    # r_sn = r[still_normal]
+    # t0 = (dots(q_sn - p_sn, r_sn) / dots(r_sn, r_sn)).flatten()
+    # t1 = (dots(q_sn + s_sn - p_sn, r_sn) / dots(r_sn, r_sn)).flatten()
+    # absolutely_wrong = np.logical_or(
+    #     np.logical_or(
+    #         np.logical_and(t1 <= 0, 0 <= t0),
+    #         np.logical_and(t1 <= 1, 1 <= t0)
+    #     ),
+    #     np.logical_and(
+    #         np.logical_and(0 <= t1, t1 <= t0),
+    #         t0 <= 1
+    #     )
+    # )
+    # if np.any(absolutely_wrong):
+    #     raise ArithmeticError("oh no")
+
+    return Collisions(intersect_indicators, points)
+
+
+def ray_segment_intersect(ray: Ray, a: Vector2, b: Vector2) -> Collision:
     o = ray.origin
     d = Vector2(cos(ray.angle), sin(ray.angle))
     c = b - a
@@ -176,7 +249,6 @@ def ray_segment_intersect(ray: Ray, a: Vector2, b: Vector2) -> Collision:
 
 
 def ray_rectangle_aabb_intersect(ray: Ray, rectangle: RectangleAABB) -> Collision:
-
     ll, lr, ur, ul = get_rectangle_points(rectangle)
 
     min_collision = Collision(False, None)
@@ -193,7 +265,6 @@ def ray_rectangle_aabb_intersect(ray: Ray, rectangle: RectangleAABB) -> Collisio
 
 
 def segment_aabb_intersect(segment: LineSegment, aabb: RectangleAABB) -> Collision:
-
     ll, lr, ur, ul = get_rectangle_points(aabb)
 
     min_collision = Collision(False, None)
