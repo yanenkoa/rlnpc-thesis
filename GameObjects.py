@@ -2,7 +2,7 @@ import enum
 from abc import ABC, abstractmethod
 from enum import Enum
 from math import sin, cos
-from typing import List, NamedTuple, Tuple
+from typing import List, NamedTuple, Tuple, Union, Optional
 
 import numpy as np
 
@@ -411,27 +411,64 @@ class ProximitySensors:
     def get_sensed_objs(self) -> np.ndarray:
         return self._current_objects
 
+    def _get_min_norms(self,
+                       comparing_indices: np.ndarray,
+                       other_segments: LineSegments,
+                       n_segments: int,
+                       active: Optional[np.ndarray] = None) -> np.ndarray:
+        comparing_segments = LineSegments(
+            self._sensor_segments.first_points[comparing_indices],
+            self._sensor_segments.second_points[comparing_indices],
+        )
+        comparison = np_line_segments_intersect(comparing_segments, other_segments)
+        intersects = comparison.intersect_indicators.reshape((self._n_sensors, n_segments))
+        if active is not None:
+            active_segments = np.tile(active, (4, 1)).T.flatten()
+            intersects = np.logical_and(intersects, active_segments)
+        points = comparison.points.reshape((self._n_sensors, n_segments, 2))
+        norms = np.linalg.norm(points - self._player_loc_np, axis=2)
+        norms[np.logical_not(intersects)] = np.inf
+        min_norms = np.min(norms, axis=1)
+        return min_norms
+
     def update(self) -> None:
 
         x, y = self._player.position
         self._player_loc_np[0] = x
         self._player_loc_np[1] = y
         self._reset_sensor_segments()
+        self._current_objects[:] = SensedObject.NONE.value
 
-        indices = np.tile(np.arange(self._n_sensors), (4 * len(self._walls), 1)).T.flatten()
-        comparing_segments = LineSegments(
-            self._sensor_segments.first_points[indices],
-            self._sensor_segments.second_points[indices]
+        object_found = np.zeros(shape=(self._n_sensors,), dtype=np.bool)
+        min_norms = np.empty(shape=(self._n_sensors,), dtype=np.float32)
+        min_norms[:] = np.inf
+
+        wall_comparing_indices = np.tile(np.arange(self._n_sensors), (4 * len(self._walls), 1)).T.flatten()
+        wall_min_norms = self._get_min_norms(wall_comparing_indices, self._wall_segments, 4 * len(self._walls))
+        no_wall = np.isinf(wall_min_norms)
+        wall_found = np.logical_not(no_wall)
+        min_norms[wall_found] = wall_min_norms[wall_found]
+        self._current_objects[wall_found] = SensedObject.WALL.value
+
+        chest_active = np.array([not chest.collected for chest in self._gold_chests], dtype=np.bool)
+        chest_comparing_indices = np.tile(np.arange(self._n_sensors), (4 * len(self._gold_chests), 1)).T.flatten()
+        chest_min_norms = self._get_min_norms(
+            chest_comparing_indices, self._chest_segments, 4 * len(self._gold_chests), chest_active
         )
-        c = np_line_segments_intersect(comparing_segments, self._wall_segments)
-        intersects = c.intersect_indicators.reshape((self._n_sensors, 4 * len(self._walls)))
-        points = c.points.reshape((self._n_sensors, 4 * len(self._walls), 2))
-        norms = np.linalg.norm(points - self._player_loc_np, axis=2)
-        norms[np.logical_not(intersects)] = np.inf
-        max_norms = np.min(norms, axis=1)
-        max_norms[np.isinf(max_norms)] = self._max_distance
+        no_chest = np.isinf(chest_min_norms)
+        chest_found = np.logical_and(chest_min_norms < min_norms, np.logical_not(no_chest)),
+        min_norms[chest_found] = chest_min_norms[chest_found]
+        self._current_objects[chest_found] = SensedObject.GOLD.value
 
-        self._points_np = self._player_loc_np + self._end_biases_units * max_norms.reshape((self._n_sensors, 1))
+        portal_comparing_indices = np.tile(np.arange(self._n_sensors), (4, 1)).T.flatten()
+        portal_min_norms = self._get_min_norms(portal_comparing_indices, self._portal_segments, 4)
+        no_portal = np.isinf(portal_min_norms)
+        portal_found = np.logical_and(portal_min_norms < min_norms, np.logical_not(no_portal))
+        min_norms[portal_found] = portal_min_norms[portal_found]
+        self._current_objects[portal_found] = SensedObject.PORTAL.value
+
+        min_norms[np.isinf(min_norms)] = self._max_distance
+        self._points_np = self._player_loc_np + self._end_biases_units * min_norms.reshape((self._n_sensors, 1))
 
     def reset(self):
         self._reset_sensor_segments()
