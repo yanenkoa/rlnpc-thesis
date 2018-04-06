@@ -2,7 +2,7 @@ import enum
 from abc import ABC, abstractmethod
 from enum import Enum
 from math import sin, cos
-from typing import List, NamedTuple, Tuple, Union, Optional
+from typing import List, NamedTuple, Tuple, Optional
 
 import numpy as np
 
@@ -439,7 +439,6 @@ class ProximitySensors:
         self._reset_sensor_segments()
         self._current_objects[:] = SensedObject.NONE.value
 
-        object_found = np.zeros(shape=(self._n_sensors,), dtype=np.bool)
         min_norms = np.empty(shape=(self._n_sensors,), dtype=np.float32)
         min_norms[:] = np.inf
 
@@ -470,7 +469,7 @@ class ProximitySensors:
         min_norms[np.isinf(min_norms)] = self._max_distance
         self._points_np = self._player_loc_np + self._end_biases_units * min_norms.reshape((self._n_sensors, 1))
 
-    def reset(self):
+    def reset(self) -> None:
         self._reset_sensor_segments()
         self._points_np[:] = self._sensor_segments.second_points
         self._current_objects[:] = SensedObject.NONE.value
@@ -688,10 +687,6 @@ class World:
     @property
     def game_over(self) -> bool:
         return self._game_over
-
-    @property
-    def proximity_sensors(self) -> List[ProximitySensor]:
-        return self._proximity_sensors
 
     @property
     def proximity_sensors_np(self) -> ProximitySensors:
