@@ -311,8 +311,8 @@ class ProximitySensors:
     _end_biases_units: np.ndarray
     _player_loc_np: np.ndarray
     _points_np: np.ndarray
-    _current_objects: np.ndarray
     _distances: np.ndarray
+    _current_objects: np.ndarray
     _wall_segments: LineSegments
     _chest_segments: LineSegments
     _portal_segments: LineSegments
@@ -337,6 +337,7 @@ class ProximitySensors:
         self._end_biases_units = np.vstack((np.cos(self._angles), np.sin(self._angles))).T
         self._player_loc_np = np.array([player_loc.x, player_loc.y], dtype=np.float32)
         self._points_np = np.zeros(shape=(self._n_sensors, 2), dtype=np.float32)
+        self._distances = np.zeros(shape=(self._n_sensors,), dtype=np.float32)
         self._current_objects = np.zeros(shape=(self._n_sensors,), dtype=np.int32)
         self._current_objects[:] = SensedObject.NONE.value
         self._wall_segments = LineSegments(
@@ -412,12 +413,6 @@ class ProximitySensors:
         self._reset_sensor_segments()
         self._points_np[:] = self._sensor_segments.second_points
 
-    def get_points(self) -> np.ndarray:
-        return self._points_np
-
-    def get_sensed_objs(self) -> np.ndarray:
-        return self._current_objects
-
     def _get_min_norms(self,
                        comparing_indices: np.ndarray,
                        other_segments: LineSegments,
@@ -446,14 +441,13 @@ class ProximitySensors:
         self._reset_sensor_segments()
         self._current_objects[:] = SensedObject.NONE.value
 
-        min_norms = np.empty(shape=(self._n_sensors,), dtype=np.float32)
-        min_norms[:] = np.inf
+        self._distances[:] = np.inf
 
         wall_comparing_indices = np.tile(np.arange(self._n_sensors), (4 * len(self._walls), 1)).T.flatten()
         wall_min_norms = self._get_min_norms(wall_comparing_indices, self._wall_segments, 4 * len(self._walls))
         no_wall = np.isinf(wall_min_norms)
         wall_found = np.logical_not(no_wall)
-        min_norms[wall_found] = wall_min_norms[wall_found]
+        self._distances[wall_found] = wall_min_norms[wall_found]
         self._current_objects[wall_found] = SensedObject.WALL.value
 
         chest_active = np.array([not chest.collected for chest in self._gold_chests], dtype=np.bool)
@@ -462,24 +456,40 @@ class ProximitySensors:
             chest_comparing_indices, self._chest_segments, 4 * len(self._gold_chests), chest_active
         )
         no_chest = np.isinf(chest_min_norms)
-        chest_found = np.logical_and(chest_min_norms < min_norms, np.logical_not(no_chest)),
-        min_norms[chest_found] = chest_min_norms[chest_found]
+        chest_found = np.logical_and(chest_min_norms < self._distances, np.logical_not(no_chest)),
+        self._distances[chest_found] = chest_min_norms[chest_found]
         self._current_objects[chest_found] = SensedObject.GOLD.value
 
         portal_comparing_indices = np.tile(np.arange(self._n_sensors), (4, 1)).T.flatten()
         portal_min_norms = self._get_min_norms(portal_comparing_indices, self._portal_segments, 4)
         no_portal = np.isinf(portal_min_norms)
-        portal_found = np.logical_and(portal_min_norms < min_norms, np.logical_not(no_portal))
-        min_norms[portal_found] = portal_min_norms[portal_found]
+        portal_found = np.logical_and(portal_min_norms < self._distances, np.logical_not(no_portal))
+        self._distances[portal_found] = portal_min_norms[portal_found]
         self._current_objects[portal_found] = SensedObject.PORTAL.value
 
-        min_norms[np.isinf(min_norms)] = self._max_distance
-        self._points_np = self._player_loc_np + self._end_biases_units * min_norms.reshape((self._n_sensors, 1))
+        self._distances[np.isinf(self._distances)] = self._max_distance
+        self._points_np = self._player_loc_np + self._end_biases_units * self._distances.reshape((self._n_sensors, 1))
 
     def reset(self) -> None:
         self._reset_sensor_segments()
         self._points_np[:] = self._sensor_segments.second_points
         self._current_objects[:] = SensedObject.NONE.value
+
+    @property
+    def points(self) -> np.ndarray:
+        return self._points_np
+
+    @property
+    def distances(self):
+        return self._distances
+
+    @property
+    def object_types(self) -> np.ndarray:
+        return self._current_objects
+
+    @property
+    def n_sensors(self) -> int:
+        return self._n_sensors
 
 
 class ProximitySensor:
