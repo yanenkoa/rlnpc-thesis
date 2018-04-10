@@ -138,7 +138,7 @@ class RenderWorld:
         self._text = self._canvas.create_text(self._text_x, self._text_y, text=str(get_player_text(self._world)))
 
         self._prox_sens_figs = {}
-        points = self._world.proximity_sensors_np.get_points()
+        points = self._world.proximity_sensors_np.points
         for i in range(points.shape[0]):
             prox_sens_fig = self._canvas.create_oval(
                 *make_unpacked_inverted_rectangle(
@@ -199,8 +199,8 @@ class RenderWorld:
                     tag=f"gold_chest_fig_{i}"
                 )
                 self._gold_chest_figs[gold_chest] = gold_chest_fig
-        points = self._world.proximity_sensors_np.get_points()
-        senses = self._world.proximity_sensors_np.get_sensed_objs()
+        points = self._world.proximity_sensors_np.points
+        senses = self._world.proximity_sensors_np.object_types
         for i in range(points.shape[0]):
             self._canvas.coords(
                 self._prox_sens_figs[i],
