@@ -57,8 +57,9 @@ class Player:
     width: float = 15.0
     height: float = 15.0
 
-    _reward_loss_ps: float = 0.1
+    _reward_loss_ps: float = 5
     _reward_lost_heat_coef: float = 1
+    _portal_reward: float = 500
 
     _init_angle: float
     _init_position: Vector2
@@ -68,6 +69,7 @@ class Player:
     _gold: int
     _heat: float
     _reward: float
+    _reward_sum: float
 
     def __init__(self, init_pos: Vector2, init_angle: float, move_speed_ps: float):
         self._init_angle = self._angle = init_angle
@@ -75,8 +77,9 @@ class Player:
         self._position = Vector2(init_pos.x, init_pos.y)
         self._move_speed_ps = move_speed_ps
         self._gold = 0
-        self._heat = 0
-        self._reward = 0
+        self._heat = 0.
+        self._reward = 0.
+        self._reward_sum = 0.
 
     def get_translation(self, elapsed_time_s: float, direction: PlayerMovementDirection) -> Vector2:
         dx = cos(self._angle) * self._move_speed_ps * elapsed_time_s * direction.value
@@ -93,6 +96,9 @@ class Player:
         self._reward += gold
         self._gold += gold
 
+    def add_portal_reward(self) -> None:
+        self._reward += self._portal_reward
+
     def get_rectangle(self) -> RectangleAABB:
         return make_rectangle(self._position, self.width, self.height)
 
@@ -102,15 +108,16 @@ class Player:
     def update_reward(self, elapsed_time_s: float) -> None:
         self._reward -= elapsed_time_s * (self._reward_loss_ps + self._heat * self._reward_lost_heat_coef)
 
-    def reset_after_step(self) -> None:
+    def reset_reward_after_step(self) -> None:
         self._reward = 0
+        self._reward_sum += self._reward_sum
 
     def reset(self) -> None:
         self._angle = self._init_angle
         self._position = Vector2(self._init_position.x, self._init_position.y)
         self._gold = 0
-        self._heat = 0
-        self._reward = 0
+        self._heat = 0.
+        self._reward = 0.
 
     @property
     def angle(self) -> float:
@@ -129,7 +136,7 @@ class Player:
         return self._heat
 
     @property
-    def reward(self):
+    def reward_sum(self):
         return self._reward
 
 
@@ -633,6 +640,7 @@ class World:
         player_rect = self._player.get_rectangle()
         if rectangles_intersect(player_rect, portal_rect).intersects:
             self._game_over = True
+            self._player.add_portal_reward()
 
         if self._game_over:
             return

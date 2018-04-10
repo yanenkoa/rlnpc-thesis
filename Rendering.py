@@ -35,7 +35,10 @@ def make_unpacked_inverted_rectangle(center: Vector2, width, height: float, y_ca
 def get_player_text(world: World):
     player = world.player
     return (
-        f'Gold: {player.gold}\nHeat: {player.heat}\nReward: {player.reward}\n{"Game over!" if world.game_over else ""}'
+        f'Gold: {player.gold}\n'
+        f'Heat: {player.heat}\n'
+        f'Reward: {player.reward_sum}\n'
+        f'{"Game over!" if world.game_over else ""}'
     )
 
 
