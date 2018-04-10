@@ -1,10 +1,12 @@
 from math import pi
 
 import numpy as np
+import tensorflow as tf
 
-from Controllers import KeyboardController
-from GameObjects import Player, RectangleWall, GoldChest, HeatSource, Portal, ProximitySensor, World, ProximitySensors
+from GameObjects import Player, RectangleWall, GoldChest, HeatSource, Portal, World, ProximitySensors
 from InputDevice import InputDevice
+from RL import Learner, LearningProcessConfig
+from Rendering import RenderWorld
 from Util import Vector2, RectangleAABB
 
 
@@ -44,7 +46,7 @@ def config_one():
 
     proximity_sensors_np = ProximitySensors(
         player,
-        np.linspace(0, 2 * np.pi, 1024, False),
+        np.linspace(0, 2 * np.pi, 512, False),
         600,
         walls,
         gold_chests,
@@ -56,10 +58,10 @@ def config_one():
 def config_two():
     width = 1000
     height = 1000
-    player = Player(Vector2(width / 2, height / 2), pi / 2, 300)
+    player = Player(Vector2(width / 2, 50), pi / 2, 300)
     walls = [
-        # RectangleWall(RectangleAABB(Vector2(0, 0), Vector2(400, 400))),
-        # RectangleWall(RectangleAABB(Vector2(600, 0), Vector2(1000, 400))),
+        RectangleWall(RectangleAABB(Vector2(0, 0), Vector2(400, 400))),
+        RectangleWall(RectangleAABB(Vector2(600, 0), Vector2(1000, 400))),
         RectangleWall(RectangleAABB(Vector2(0, 600), Vector2(1000, 650))),
     ]
     left_wall = RectangleWall(RectangleAABB(Vector2(-100, 0), Vector2(0, height)))
@@ -72,12 +74,10 @@ def config_two():
     ]
     heat_sources = []
     portal = Portal(Vector2(800, 500))
-    proximity_sensors = [ProximitySensor(player, angle, 200, walls, gold_chests, portal)
-                         for angle in np.linspace(0, 2 * np.pi, 40, False)]
     proximity_sensors_np = ProximitySensors(
         player,
-        np.linspace(0, 2 * np.pi, 32, False),
-        200,
+        np.linspace(0, 2 * np.pi, 256, False),
+        500,
         walls,
         gold_chests,
         portal
@@ -103,13 +103,11 @@ def config_empty():
         GoldChest(500, Vector2(100, height / 2))
     ]
     heat_sources = []
-    portal = Portal(Vector2(600, 600))
-    proximity_sensors = [ProximitySensor(player, angle, 500, walls, gold_chests, portal)
-                         for angle in np.linspace(0, 2 * np.pi, 128, False)]
+    portal = Portal(Vector2(600, 500))
     proximity_sensors_np = ProximitySensors(
         player,
-        np.linspace(0, 2 * np.pi, 32, False),
-        200,
+        np.linspace(0, 2 * np.pi, 256, False),
+        600,
         walls,
         gold_chests,
         portal
@@ -118,16 +116,41 @@ def config_empty():
 
 
 def main():
-    world = World(*config_one())
+    world = World(*config_two())
 
-    turn_rate_ps = pi / 0.8
-    input_device = InputDevice()
-    controller = KeyboardController(turn_rate_ps, input_device, world)
-    controller.loop()
-
-    # controller = RLController(world)
-    # controller.initialize()
+    # turn_rate_ps = pi / 0.8
+    # input_device = InputDevice()
+    # controller = KeyboardController(turn_rate_ps, input_device, world)
     # controller.loop()
+
+    config = LearningProcessConfig(
+        replay_size=128,
+        update_frequency=16,
+        reward_discount_coef=0.9,
+        start_random_action_prob=1.,
+        end_random_action_prob=0.1,
+        annealing_steps=10000,
+        n_training_episodes=10000,
+        pre_train_steps=10000,
+        max_ep_length=(5 * 60 * 30),
+    )
+    session = tf.Session()
+    learner = Learner(world, 128, session, 7, 1. / 30, config)
+    learner.initialize()
+    # render_world = RenderWorld(world)
+    # render_world.start_drawing()
+    render_world: RenderWorld = RenderWorld(world)
+    input_device = InputDevice()
+
+    def render_stuff():
+        nonlocal render_world, input_device
+        if input_device.is_key_down("s"):
+            render_world.start_drawing()
+        elif input_device.is_key_down("d"):
+            render_world.stop_drawing()
+        render_world.update()
+
+    learner.train("data", render_stuff)
 
 
 if __name__ == '__main__':
