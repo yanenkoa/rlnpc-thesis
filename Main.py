@@ -5,7 +5,7 @@ import tensorflow as tf
 
 from GameObjects import Player, RectangleWall, GoldChest, HeatSource, Portal, World, ProximitySensors
 from InputDevice import InputDevice
-from RL import Learner, LearningProcessConfig
+from RL import DeepQLearnerWithExperienceReplay, LearningProcessConfig
 from Rendering import RenderWorld
 from Util import Vector2, RectangleAABB
 
@@ -60,7 +60,7 @@ def config_two():
     height = 1000
     player = Player(Vector2(width / 2, 50), pi / 2, 300)
     walls = [
-        RectangleWall(RectangleAABB(Vector2(0, 0), Vector2(400, 400))),
+        # RectangleWall(RectangleAABB(Vector2(0, 0), Vector2(400, 400))),
         RectangleWall(RectangleAABB(Vector2(600, 0), Vector2(1000, 400))),
         RectangleWall(RectangleAABB(Vector2(0, 600), Vector2(1000, 650))),
     ]
@@ -124,8 +124,8 @@ def main():
     # controller.loop()
 
     config = LearningProcessConfig(
-        replay_size=128,
-        update_frequency=16,
+        replay_size=512,
+        update_frequency=64,
         reward_discount_coef=0.9,
         start_random_action_prob=1.,
         end_random_action_prob=0.1,
@@ -135,22 +135,30 @@ def main():
         max_ep_length=(5 * 60 * 30),
     )
     session = tf.Session()
-    learner = Learner(world, 128, session, 7, 1. / 30, config)
+    learner = DeepQLearnerWithExperienceReplay(world, 128, session, 7, 1. / 30, config)
     learner.initialize()
     # render_world = RenderWorld(world)
     # render_world.start_drawing()
-    render_world: RenderWorld = RenderWorld(world)
-    input_device = InputDevice()
+    # render_world: RenderWorld = RenderWorld(world)
+    # input_device = InputDevice()
 
-    def render_stuff():
-        nonlocal render_world, input_device
-        if input_device.is_key_down("s"):
-            render_world.start_drawing()
-        elif input_device.is_key_down("d"):
-            render_world.stop_drawing()
-        render_world.update()
+    # def render_stuff():
+    #     nonlocal render_world, input_device
+    #     if input_device.is_key_down("s"):
+    #         render_world.start_drawing()
+    #     if input_device.is_key_down("d"):
+    #         render_world.stop_drawing()
+    #     render_world.update()
 
-    learner.train("data", render_stuff)
+    # learner.train("data")
+
+    learner.load_model("data")
+    # render_world.start_drawing()
+    # while True:
+    #     learner.apply_action_from_network()
+    #     render_world.update()
+
+    learner.train("data1")
 
 
 if __name__ == '__main__':
