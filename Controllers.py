@@ -6,7 +6,7 @@ from pynput.keyboard import Key
 
 from GameObjects import World, Player, PlayerMovementDirection
 from InputDevice import InputDevice
-from RL import Learner
+from RL import DeepQLearnerWithExperienceReplay
 from Rendering import RenderWorld
 
 
@@ -82,7 +82,7 @@ class RLController:
 
     _time_between_frames: float
     _window_size: int
-    _learner: Learner
+    _learner: DeepQLearnerWithExperienceReplay
     _render_world: RenderWorld
     _last_update_s: float
 
@@ -93,8 +93,8 @@ class RLController:
         self._time_between_frames = 1 / self._fps
         self._window_size = 7
         fake_process_config = namedtuple("SomeTuple", ["reward_discount_coef"])(0.9)
-        self._learner = Learner(world, 128, tf.Session(), self._window_size, 1. / 30,
-                                fake_process_config)
+        self._learner = DeepQLearnerWithExperienceReplay(world, 128, tf.Session(), self._window_size, 1. / 30,
+                                                         fake_process_config)
         self._render_world = RenderWorld(self._world)
         self._last_update_s = time()
 
