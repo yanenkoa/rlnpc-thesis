@@ -1,14 +1,14 @@
-from typing import Tuple, NamedTuple, Callable, Optional, List, Union, Deque
+from typing import Tuple, NamedTuple, Callable, Optional, List, Deque
 
 import keras
 import numpy as np
 import tensorflow as tf
-from keras.layers import Dense, Conv2D, Flatten, Concatenate
+from keras.layers import Dense, Concatenate
 from numpy.core.multiarray import ndarray
 from tensorflow import losses
 from tensorflow.python.training.saver import Saver
 
-from GameObjects import World, PlayerMovementDirection, Player, SensedObject
+from module.GameObjects import World, PlayerMovementDirection, Player, SensedObject
 
 
 class Experiences(NamedTuple):

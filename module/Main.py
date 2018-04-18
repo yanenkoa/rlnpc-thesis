@@ -1,14 +1,13 @@
-from collections import deque
 from math import pi
 
 import numpy as np
 import tensorflow as tf
 
-from GameObjects import Player, RectangleWall, GoldChest, HeatSource, Portal, World, ProximitySensors
+from module.GameObjects import Player, RectangleWall, GoldChest, HeatSource, Portal, World, ProximitySensors
 # from InputDevice import InputDevice
-from RL import DeepQLearnerWithExperienceReplay, LearningProcessConfig
+from module.RL import DeepQLearnerWithExperienceReplay, LearningProcessConfig
 # from Rendering import RenderWorld
-from Util import Vector2, RectangleAABB
+from module.Util import Vector2, RectangleAABB
 
 
 def config_empty():

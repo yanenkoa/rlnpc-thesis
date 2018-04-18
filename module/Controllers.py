@@ -4,10 +4,10 @@ from time import time, sleep
 import tensorflow as tf
 from pynput.keyboard import Key
 
-from GameObjects import World, Player, PlayerMovementDirection
-from InputDevice import InputDevice
-from RL import DeepQLearnerWithExperienceReplay
-from Rendering import RenderWorld
+from module.GameObjects import World, Player, PlayerMovementDirection
+from module.InputDevice import InputDevice
+from module.RL import DeepQLearnerWithExperienceReplay
+from module.Rendering import RenderWorld
 
 
 class KeyboardController:
