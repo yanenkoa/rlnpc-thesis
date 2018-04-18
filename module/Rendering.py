@@ -35,33 +35,32 @@ def make_unpacked_inverted_rectangle(center: Vector2, width, height: float, y_ca
 def get_player_text(world: World):
     player = world.player
     return (
-        f'Gold: {player.gold}\n'
-        f'Heat: {player.heat}\n'
-        f'Reward: {player.reward_sum}\n'
-        f'{"Game over!" if world.game_over else ""}'
+        (
+            'Gold: {gold}\nHeat: {heat}\nReward: {reward_sum}\n{game_over}'
+        ).format(gold=player.gold, heat=player.heat, reward_sum=player.reward_sum,
+                 game_over=("Game over!" if world.game_over else ""))
     )
 
 
 class RenderWorld:
-    _started: bool
-    _player_color: str = "green"
-    _angle_marker_bias: float = 30
-    _angle_marker_width: float = 5
-    _angle_marker_height: float = 5
-    _angle_marker_color: str = "blue"
-    _text_x: float = 100
-    _text_y: float = 100
+    _player_color = "green"  # type: str
+    _angle_marker_bias = 30.  # type: float
+    _angle_marker_width = 5.  # type: float
+    _angle_marker_height = 5.  # type: float
+    _angle_marker_color = "blue"  # type: str
+    _text_x = 100.  # type: float
+    _text_y = 100.  # type: float
 
-    _world: World
-
-    _master: tk.Tk
-    _canvas: tk.Canvas
-    _player_fig: Any
-    _angle_marker_fig: Any
-    _walls_figs: Dict[Wall, Any]
-    _gold_chest_figs: Dict[GoldChest, Any]
-    _heat_source_figs: Dict[HeatSource, Any]
-    _prox_sens_figs: Dict[int, Any]
+    _world = ...  # type: World
+    _started = ...  # type: bool
+    _master = ...  # type: tk.Tk
+    _canvas = ...  # type: tk.Canvas
+    _player_fig = ...  # type: Any
+    _angle_marker_fig = ...  # type: Any
+    _walls_figs = ...  # type: Dict[Wall, Any]
+    _gold_chest_figs = ...  # type: Dict[GoldChest, Any]
+    _heat_source_figs = ...  # type: Dict[HeatSource, Any]
+    _prox_sens_figs = ...  # type: Dict[int, Any]
 
     def __init__(self, world: World):
 
@@ -97,7 +96,7 @@ class RenderWorld:
             ),
             fill="blue",
             width=1,
-            tag=f"portal_fig"
+            tag="portal_fig"
         )
 
         self._walls_figs = {}
@@ -107,7 +106,7 @@ class RenderWorld:
                     *unpack_rectangle(invert_y_rectangle(wall.rectangle, self._world.height)),
                     fill="black",
                     width=0,
-                    tag=f"wall_fig_{i}"
+                    tag="wall_fig_{i}".format(i=i)
                 )
                 self._walls_figs[wall] = wall_fig
 
@@ -119,7 +118,7 @@ class RenderWorld:
                 ),
                 fill="yellow",
                 width=1,
-                tag=f"gold_chest_fig_{i}"
+                tag="gold_chest_fig_{i}".format(i=i)
             )
             self._gold_chest_figs[gold_chest] = gold_chest_fig
 
@@ -131,7 +130,7 @@ class RenderWorld:
                 ),
                 fill="orange",
                 width=1,
-                tag=f"heat_source_fig{i}"
+                tag="heat_source_fig{i}".format(i=i)
             )
             self._heat_source_figs[heat_source] = heat_source_fig
 
@@ -149,7 +148,7 @@ class RenderWorld:
                 ),
                 fill="grey",
                 width=1,
-                tag=f"prox_sens_fig{i}"
+                tag="prox_sens_fig{i}".format(i=i)
             )
             self._prox_sens_figs[i] = prox_sens_fig
 
@@ -196,7 +195,7 @@ class RenderWorld:
                     ),
                     fill="yellow",
                     width=1,
-                    tag=f"gold_chest_fig_{i}"
+                    tag="gold_chest_fig_{i}".format(i=i)
                 )
                 self._gold_chest_figs[gold_chest] = gold_chest_fig
         points = self._world.proximity_sensors_np.points

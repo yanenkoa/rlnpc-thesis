@@ -6,8 +6,8 @@ KeyType = Union[Key, KeyCode, str]
 
 
 class InputDevice:
-    _pressed_keys: Set[KeyType]
-    _listener: Listener
+    _pressed_keys = ...  # type: Set[KeyType]
+    _listener = ...  # type: Listener
 
     def __init__(self):
         self._pressed_keys = set()

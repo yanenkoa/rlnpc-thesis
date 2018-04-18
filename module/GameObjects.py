@@ -1,5 +1,6 @@
 import enum
 from abc import ABC, abstractmethod
+from collections import namedtuple
 from enum import Enum
 from math import sin, cos
 from typing import List, NamedTuple, Tuple, Optional
@@ -18,7 +19,7 @@ class LocationValidator(ABC):
 
 
 class ValidatorComposition(LocationValidator):
-    _validators: List[LocationValidator]
+    _validators = ...  # type: List[LocationValidator]
 
     def __init__(self, validators: List[LocationValidator]):
         self._validators = validators
@@ -31,8 +32,8 @@ class ValidatorComposition(LocationValidator):
 
 
 class RectangleConstraints(LocationValidator):
-    _x_cap: float
-    _y_cap: float
+    _x_cap = ...  # type: float
+    _y_cap = ...  # type: float
 
     def __init__(self, x_cap: float, y_cap: float):
         self._x_cap = x_cap
@@ -42,34 +43,38 @@ class RectangleConstraints(LocationValidator):
         return 0 <= position.x <= self._x_cap and 0 <= position.y <= self._y_cap
 
 
-class PlayerUpdate(NamedTuple):
-    translation: Vector2
-    angle_increment: float
+PlayerUpdate = namedtuple("PlayerUpdate", [
+    "translation",
+    "angle_increment"
+])
+# class PlayerUpdate(NamedTuple):
+#     translation: Vector2
+#     angle_increment: float
 
 
 class PlayerMovementDirection(Enum):
-    BACKWARD: int = -1
-    NONE: int = 0
-    FORWARD: int = 1
+    BACKWARD = -1  # type: int
+    NONE = 0  # type: int
+    FORWARD = 1  # type: int
 
 
 class Player:
-    width: float = 15.0
-    height: float = 15.0
+    width = 15.0  # type: float
+    height = 15.0  # type: float
 
-    _reward_loss_ps: float = 5
-    _reward_lost_heat_coef: float = 1
-    _portal_reward: float = 500
+    _reward_loss_ps = 5.  # type: float
+    _reward_lost_heat_coef = 1.  # type: float
+    _portal_reward = 500.  # type: float
 
-    _init_angle: float
-    _init_position: Vector2
-    _angle: float
-    _position: Vector2
-    _move_speed_ps: float
-    _gold: int
-    _heat: float
-    _reward: float
-    _reward_sum: float
+    _init_angle = ...  # type: float
+    _init_position = ...  # type: Vector2
+    _angle = ...  # type: float
+    _position = ...  # type: Vector2
+    _move_speed_ps = ...  # type: float
+    _gold = ...  # type: int
+    _heat = ...  # type: float
+    _reward = ...  # type: float
+    _reward_sum = ...  # type: float
 
     def __init__(self, init_pos: Vector2, init_angle: float, move_speed_ps: float):
         self._init_angle = self._angle = init_angle
@@ -165,7 +170,7 @@ class Wall(ABC):
 
 
 class WallColliderValidator(LocationValidator):
-    _walls: List[Wall]
+    _walls = ...  # type: List[Wall]
 
     def __init__(self, walls: List[Wall]):
         self._walls = walls
@@ -178,7 +183,7 @@ class WallColliderValidator(LocationValidator):
 
 
 class RectangleWall(Wall):
-    _rectangle: RectangleAABB
+    _rectangle = ...  # type: RectangleAABB
 
     def __init__(self, rectangle: RectangleAABB):
         self._rectangle = rectangle
@@ -204,13 +209,14 @@ class RectangleWall(Wall):
 
 
 class GoldChest:
-    width: float = 20
-    height: float = 20
+    width = 20  # type: float
+    height = 20  # type: float
 
-    _collected: bool = False
-    _gold: int
-    _location: Vector2
-    _rectangle: RectangleAABB
+    _collected = False  # type: bool
+
+    _gold = ...  # type: int
+    _location = ...  # type: Vector2
+    _rectangle = ...  # type: RectangleAABB
 
     def __init__(self, gold: int, location: Vector2):
         self._gold = gold
@@ -242,13 +248,13 @@ class GoldChest:
 
 
 class HeatSource:
-    _coef: float = 300
+    _coef = 300.  # type: float
 
-    _heat: float
-    _location: Vector2
-    _walls: List[Wall]
+    _heat = ...  # type: float
+    _location = ...  # type: Vector2
+    _walls = ...  # type: List[Wall]
 
-    _radius: float = 5
+    _radius = 5.  # type: float
 
     def __init__(self, heat: float, location: Vector2, walls: List[Wall]):
         self._heat = heat
@@ -278,11 +284,11 @@ class HeatSource:
 
 
 class Portal:
-    width: float = 30
-    height: float = 30
+    width = 30.
+    height = 30.
 
-    _location: Vector2
-    _rect: RectangleAABB
+    _location = ...  # type: Vector2
+    _rect = ...  # type: RectangleAABB
 
     def __init__(self, location: Vector2):
         self._location = location
@@ -298,30 +304,30 @@ class Portal:
 
 
 class SensedObject(Enum):
-    NONE = enum.auto()
-    WALL = enum.auto()
-    GOLD = enum.auto()
-    PORTAL = enum.auto()
+    NONE = 1
+    WALL = 2
+    GOLD = 3
+    PORTAL = 4
 
 
 class ProximitySensors:
-    _player: Player
-    _angles: np.ndarray
-    _max_distance: float
-    _walls: List[RectangleWall]
-    _gold_chests: List[GoldChest]
-    _portal: Portal
+    _player = ...  # type: Player
+    _angles = ...  # type: np.ndarray
+    _max_distance = ...  # type: float
+    _walls = ...  # type: List[RectangleWall]
+    _gold_chests = ...  # type: List[GoldChest]
+    _portal = ...  # type: Portal
 
-    _n_sensors: int
-    _end_biases_units: np.ndarray
-    _player_loc_np: np.ndarray
-    _points_np: np.ndarray
-    _distances: np.ndarray
-    _current_objects: np.ndarray
-    _wall_segments: LineSegments
-    _chest_segments: LineSegments
-    _portal_segments: LineSegments
-    _sensor_segments: LineSegments
+    _n_sensors = ...  # type: int
+    _end_biases_units = ...  # type: np.ndarray
+    _player_loc_np = ...  # type: np.ndarray
+    _points_np = ...  # type: np.ndarray
+    _distances = ...  # type: np.ndarray
+    _current_objects = ...  # type: np.ndarray
+    _wall_segments = ...  # type: LineSegments
+    _chest_segments = ...  # type: LineSegments
+    _portal_segments = ...  # type: LineSegments
+    _sensor_segments = ...  # type: LineSegments
 
     def __init__(self,
                  player: Player,
@@ -507,16 +513,16 @@ class ProximitySensors:
 
 
 class ProximitySensor:
-    _player: Player
-    _angle: float
-    _max_distance: float
-    _walls: List[Wall]
-    _gold_chests: List[GoldChest]
-    _portal: Portal
+    _player = ...  # type: Player
+    _angle = ...  # type: float
+    _max_distance = ...  # type: float
+    _walls = ...  # type: List[Wall]
+    _gold_chests = ...  # type: List[GoldChest]
+    _portal = ...  # type: Portal
 
-    _point: Vector2
-    _current_obj: SensedObject
-    _segment: LineSegment
+    _point = ...  # type: Vector2
+    _current_obj = ...  # type: SensedObject
+    _segment = ...  # type: LineSegment
 
     def __init__(self,
                  player: Player,
@@ -597,16 +603,16 @@ class ProximitySensor:
 
 
 class World:
-    _width: int
-    _height: int
-    _player: Player
-    _walls: List[Wall]
-    _gold_chests: List[GoldChest]
-    _heat_sources: List[HeatSource]
-    _portal: Portal
-    _validator: LocationValidator
-    _game_over: bool
-    _proximity_sensors_np: ProximitySensors
+    _width = ...  # type: int
+    _height = ...  # type: int
+    _player = ...  # type: Player
+    _walls = ...  # type: List[Wall]
+    _gold_chests = ...  # type: List[GoldChest]
+    _heat_sources = ...  # type: List[HeatSource]
+    _portal = ...  # type: Portal
+    _validator = ...  # type: LocationValidator
+    _game_over = ...  # type: bool
+    _proximity_sensors_np = ...  # type: ProximitySensors
 
     def __init__(
             self,

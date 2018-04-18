@@ -3,8 +3,10 @@ from math import pi
 import numpy as np
 import tensorflow as tf
 
+from module.Controllers import KeyboardController
 from module.GameObjects import Player, RectangleWall, GoldChest, HeatSource, Portal, World, ProximitySensors
 # from InputDevice import InputDevice
+from module.InputDevice import InputDevice
 from module.RL import DeepQLearnerWithExperienceReplay, LearningProcessConfig
 # from Rendering import RenderWorld
 from module.Util import Vector2, RectangleAABB
@@ -140,10 +142,12 @@ def cloud_ml_training(world_config):
 def main():
     # world = World(*config_one())
     #
-    # # turn_rate_ps = pi / 0.8
-    # # input_device = InputDevice()
-    # # # controller = KeyboardController(turn_rate_ps, input_device, world)
+    # turn_rate_ps = pi / 0.8
+    # input_device = InputDevice()
+    # controller = KeyboardController(turn_rate_ps, input_device, world)
     #
+    # controller.loop()
+
     # config = LearningProcessConfig(
     #     replay_size=4 * 64,
     #     update_frequency=2 * 64,

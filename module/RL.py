@@ -1,36 +1,45 @@
+from collections import namedtuple
 from typing import Tuple, NamedTuple, Callable, Optional, List, Deque
 
 import keras
 import numpy as np
 import tensorflow as tf
 from keras.layers import Dense, Concatenate
-from numpy.core.multiarray import ndarray
-from tensorflow import losses
+from tensorflow import losses, Tensor
 from tensorflow.python.training.saver import Saver
 
 from module.GameObjects import World, PlayerMovementDirection, Player, SensedObject
 
 
-class Experiences(NamedTuple):
-    states: List[np.ndarray]
-    next_states: List[np.ndarray]
-    action_indices: np.ndarray
-    rewards: np.ndarray
-    terminates: np.ndarray
+Experiences = namedtuple("Experiences", [
+    "states",
+    "next_states",
+    "action_indices",
+    "rewards",
+    "terminates"
+])
+# class Experiences(NamedTuple):
+#     states: List[np.ndarray]
+#     next_states: List[np.ndarray]
+#     action_indices: np.ndarray
+#     rewards: np.ndarray
+#     terminates: np.ndarray
 
 
 class EpisodeBuffer:
-    _buffer_size: int
+    """
+    :type _buffer_size: int
 
-    _array_size: int
-    _current_ptr: int
-    _indices_for_sampling: np.ndarray
+    :type _array_size: int
+    :type _current_ptr: int
+    :type _indices_for_sampling: np.ndarray
 
-    _state_buffers: List[np.ndarray]
-    _next_states_buffer: List[np.ndarray]
-    _action_index_buffer: ndarray
-    _reward_buffer: ndarray
-    _terminate_buffer: ndarray
+    :type _state_buffers: List[np.ndarray]
+    :type _next_states_buffer: List[np.ndarray]
+    :type _action_index_buffer: np.ndarray
+    :type _reward_buffer: np.ndarray
+    :type _terminate_buffer: np.ndarray
+    """
 
     def __init__(self, state_shapes: List[Tuple], buffer_size: int = 50000):
         self._buffer_size = buffer_size
@@ -127,50 +136,75 @@ class EpisodeBuffer:
         )
 
 
-class LearningProcessConfig(NamedTuple):
-    replay_size: int
-    update_frequency: int
-    reward_discount_coef: float
-    start_random_action_prob: float
-    end_random_action_prob: float
-    annealing_steps: int
-    n_training_episodes: int
-    pre_train_steps: int
-    max_ep_length: int
-    buffer_size: int
+# LearningProcessConfig = namedtuple("LearningProcessConfig", [
+#     "replay_size",
+#     "update_frequency",
+#     "reward_discount_coef",
+#     "start_random_action_prob",
+#     "end_random_action_prob",
+#     "annealing_steps",
+#     "n_training_episodes",
+#     "pre_train_steps",
+#     "max_ep_length",
+#     "buffer_size",
+# ])
+
+
+LearningProcessConfig = namedtuple("LearningProcessConfig", [
+    "replay_size",
+    "update_frequency",
+    "reward_discount_coef",
+    "start_random_action_prob",
+    "end_random_action_prob",
+    "annealing_steps",
+    "n_training_episodes",
+    "pre_train_steps",
+    "max_ep_length",
+    "buffer_size",
+])
+# class LearningProcessConfig(NamedTuple):
+#     replay_size = ...  # type: int
+#     update_frequency = ...  # type: int
+#     reward_discount_coef = ...  # type: float
+#     start_random_action_prob = ...  # type: float
+#     end_random_action_prob = ...  # type: float
+#     annealing_steps = ...  # type: int
+#     n_training_episodes = ...  # type: int
+#     pre_train_steps = ...  # type: int
+#     max_ep_length = ...  # type: int
+#     buffer_size = ...  # type: int
 
 
 class DeepQLearnerWithExperienceReplay:
-    _game_world: World
-    _output_angles: np.ndarray
-    _session: tf.Session
-    _time_between_actions_s: float
-    _n_steps_back: int
-    _process_config: LearningProcessConfig
+    _game_world = ...  # type: World
+    _output_angles = ...  # type: np.ndarray
+    _session = ...  # type: tf.Session
+    _time_between_actions_s = ...  # type: float
+    _n_steps_back = ...  # type: int
+    _process_config = ...  # type: LearningProcessConfig
 
-    _player: Player
-    _n_sensor_types: int
-    _n_output_angles: int
-    _n_actions: int
-    _n_sensors: int
-    _n_sensor_inputs: int
-    _max_sensor_distance: float
+    _player = ...  # type: Player
+    _n_sensor_types = ...  # type: int
+    _n_output_angles = ...  # type: int
+    _n_actions = ...  # type: int
+    _n_sensors = ...  # type: int
+    _n_sensor_inputs = ...  # type: int
+    _max_sensor_distance = ...  # type: float
+    _sensor_state_shape = ...  # type: Tuple
+    _heat_state_shape = ...  # type: Tuple
+    _state_shapes = ...  # type: List[Tuple]
 
-    _sensor_state_shape: Tuple
-    _heat_state_shape: Tuple
-    _state_shapes: List[Tuple]
-
-    _sensor_input_tensor: tf.Tensor
-    _heat_input_tensor: tf.Tensor
-    _position_input_tensor: tf.Tensor
-    _action_index_tensor: tf.Tensor
-    _chosen_actions_tensor: tf.Tensor
-    _rewards_tensor: tf.Tensor
-    _terminates_tensor: tf.Tensor
-    _actions_qualities_tensor: tf.Tensor
-    _replay_next_states_qualities_tensor: tf.Tensor
-    _update_model: tf.Operation
-    _saver: Saver
+    _sensor_input_tensor = ...  # type: tf.Tensor
+    _heat_input_tensor = ...  # type: tf.Tensor
+    _position_input_tensor = ...  # type: tf.Tensor
+    _action_index_tensor = ...  # type: tf.Tensor
+    _chosen_actions_tensor = ...  # type: tf.Tensor
+    _rewards_tensor = ...  # type: tf.Tensor
+    _terminates_tensor = ...  # type: tf.Tensor
+    _actions_qualities_tensor = ...  # type: tf.Tensor
+    _replay_next_states_qualities_tensor = ...  # type: tf.Tensor
+    _update_model = ...  # type: tf.Operation
+    _saver = ...  # type: Saver
 
     def __init__(self,
                  world: World,
@@ -357,7 +391,7 @@ class DeepQLearnerWithExperienceReplay:
             self._heat_input_tensor: input_heat,
         })[0]
         print(qualities)
-        action_index = np.argmax(qualities[:-1])
+        action_index = np.argmax(qualities[:-1])  # type: int
         print(action_index)
 
         # action_index = self._session.run(self._action_index_tensor, feed_dict={
@@ -493,7 +527,8 @@ class DeepQLearnerWithExperienceReplay:
                 print(total_steps, np.mean(reward_sums[-10:]), random_action_prob)
 
             if save_path is not None and i_episode % 200 == 0:
-                self._saver.save(self._session, f"{save_path}/model-{i_episode}.ckpt")
-                print(f"Saved model at episode {i_episode}.")
+                self._saver.save(self._session, "{save_path}/model-{i_episode}.ckpt".format(save_path=save_path,
+                                                                                            i_episode=i_episode))
+                print("Saved model at episode {i_episode}.".format(i_episode=i_episode))
 
-        self._saver.save(self._session, f"{save_path}/model-final.ckpt")
+        self._saver.save(self._session, "{save_path}/model-final.ckpt".format(save_path=save_path))

@@ -1,3 +1,4 @@
+from collections import namedtuple
 from math import sin, cos, sqrt
 from typing import NamedTuple, Optional
 
@@ -5,8 +6,8 @@ import numpy as np
 
 
 class Vector2:
-    x: float
-    y: float
+    x = ...  # type: float
+    y = ...  # type: float
 
     def __init__(self, x: float, y: float) -> None:
         self.x = x
@@ -38,10 +39,10 @@ class Vector2:
         return iter((self.x, self.y))
 
     def __str__(self):
-        return f"({self.x}, {self.y})"
+        return "({x}, {y})".format(x=self.x, y=self.y)
 
     def __repr__(self):
-        return f"({self.x}, {self.y})"
+        return "({x}, {y})".format(x=self.x, y=self.y)
 
 
 def dot(v1: Vector2, v2: Vector2) -> float:
@@ -60,29 +61,44 @@ def crosses(v1s: np.ndarray, v2s: np.ndarray) -> np.ndarray:
     return v1s[:, 0] * v2s[:, 1] - v1s[:, 1] * v2s[:, 0]
 
 
-class Ray(NamedTuple):
-    origin: Vector2
-    angle: float
+Ray = namedtuple("Ray", [
+    "origin",
+    "angle"
+])
+# class Ray(NamedTuple):
+#     origin: Vector2
+#     angle: float
 
 
-class LineSegment(NamedTuple):
-    a: Vector2
-    b: Vector2
+LineSegment = namedtuple("LineSegment", [
+    "a",
+    "b"
+])
+# class LineSegment(NamedTuple):
+#     a: Vector2
+#     b: Vector2
 
 
-class RectangleAABB(NamedTuple):
-    lower_left: Vector2
-    upper_right: Vector2
+RectangleAABB = namedtuple("RectangleAABB", [
+    "lower_left",
+    "upper_right"
+])
+# class RectangleAABB(NamedTuple):
+#     lower_left: Vector2
+#     upper_right: Vector2
 
-    def __str__(self):
-        return f"lower_left={self.lower_left}, upper_right={self.upper_right}"
 
-
-class RectanglePoints(NamedTuple):
-    lower_left: Vector2
-    lower_right: Vector2
-    upper_right: Vector2
-    upper_left: Vector2
+RectanglePoints = namedtuple("RectanglePoints", [
+    "lower_left",
+    "lower_right",
+    "upper_right",
+    "upper_left"
+])
+# class RectanglePoints(NamedTuple):
+#     lower_left: Vector2
+#     lower_right: Vector2
+#     upper_right: Vector2
+#     upper_left: Vector2
 
 
 def make_rectangle(center: Vector2, width: float, height: float) -> RectangleAABB:
@@ -124,9 +140,13 @@ def point_in_rectangle_aabb(point: Vector2, rectangle: RectangleAABB) -> bool:
     )
 
 
-class RectangleCollision(NamedTuple):
-    intersects: bool
-    point: Optional[Vector2]
+RectangleCollision = namedtuple("RectangleCollision", [
+    "intersects",
+    "point"
+])
+# class RectangleCollision(NamedTuple):
+#     intersects: bool
+#     point: Optional[Vector2]
 
 
 def rectangles_intersect(r1: RectangleAABB, r2: RectangleAABB) -> RectangleCollision:
@@ -136,9 +156,13 @@ def rectangles_intersect(r1: RectangleAABB, r2: RectangleAABB) -> RectangleColli
     return RectangleCollision(False, None)
 
 
-class Collision(NamedTuple):
-    intersects: bool
-    point: Optional[Vector2]
+Collision = namedtuple("Collision", [
+    "intersects",
+    "point"
+])
+# class Collision(NamedTuple):
+#     intersects: bool
+#     point: Optional[Vector2]
 
 
 def line_segments_intersect(s1: LineSegment, s2: LineSegment) -> Collision:
@@ -169,14 +193,22 @@ def line_segments_intersect(s1: LineSegment, s2: LineSegment) -> Collision:
     return Collision(intersects, point)
 
 
-class LineSegments(NamedTuple):
-    first_points: np.ndarray
-    second_points: np.ndarray
+LineSegments = namedtuple("LineSegments", [
+    "first_points",
+    "second_points"
+])
+# class LineSegments(NamedTuple):
+#     first_points: np.ndarray
+#     second_points: np.ndarray
 
 
-class Collisions(NamedTuple):
-    intersect_indicators: np.ndarray
-    points: np.ndarray
+Collisions = namedtuple("Collisions", [
+    "intersect_indicators",
+    "points"
+])
+# class Collisions(NamedTuple):
+#     intersect_indicators: np.ndarray
+#     points: np.ndarray
 
 
 def np_line_segments_intersect(s1: LineSegments, s2: LineSegments) -> Collisions:
