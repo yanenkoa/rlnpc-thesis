@@ -162,6 +162,7 @@ class DeepQLearnerWithExperienceReplay:
 
     _sensor_input_tensor: tf.Tensor
     _heat_input_tensor: tf.Tensor
+    _position_input_tensor: tf.Tensor
     _action_index_tensor: tf.Tensor
     _chosen_actions_tensor: tf.Tensor
     _rewards_tensor: tf.Tensor
