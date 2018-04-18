@@ -1,13 +1,10 @@
-from collections import namedtuple
-from time import time, sleep
+from time import time
 
-import tensorflow as tf
 from pynput.keyboard import Key
 
 from trainer.GameObjects import World, Player, PlayerMovementDirection
-from trainer.InputDevice import InputDevice
-from trainer.RL import DeepQLearnerWithExperienceReplay
-from trainer.Rendering import RenderWorld
+from misc.InputDevice import InputDevice
+from misc.Rendering import RenderWorld
 
 
 class KeyboardController:
