@@ -8,7 +8,7 @@ from keras.layers import Dense, Concatenate
 from tensorflow import losses, Tensor
 from tensorflow.python.training.saver import Saver
 
-from module.GameObjects import World, PlayerMovementDirection, Player, SensedObject
+from trainer.GameObjects import World, PlayerMovementDirection, Player, SensedObject
 
 
 Experiences = namedtuple("Experiences", [
@@ -518,8 +518,6 @@ class DeepQLearnerWithExperienceReplay:
 
                 if game_over:
                     break
-
-            print("finished an episode")
 
             reward_sums.append(reward_sum)
 

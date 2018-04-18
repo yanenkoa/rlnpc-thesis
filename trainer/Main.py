@@ -3,13 +3,13 @@ from math import pi
 import numpy as np
 import tensorflow as tf
 
-from module.Controllers import KeyboardController
-from module.GameObjects import Player, RectangleWall, GoldChest, HeatSource, Portal, World, ProximitySensors
+from trainer.Controllers import KeyboardController
+from trainer.GameObjects import Player, RectangleWall, GoldChest, HeatSource, Portal, World, ProximitySensors
 # from InputDevice import InputDevice
-from module.InputDevice import InputDevice
-from module.RL import DeepQLearnerWithExperienceReplay, LearningProcessConfig
+from trainer.InputDevice import InputDevice
+from trainer.RL import DeepQLearnerWithExperienceReplay, LearningProcessConfig
 # from Rendering import RenderWorld
-from module.Util import Vector2, RectangleAABB
+from trainer.Util import Vector2, RectangleAABB
 
 
 def config_empty():
@@ -45,7 +45,7 @@ def config_empty():
 def config_one():
     width = 1000
     height = 1000
-    player = Player(Vector2(50, 300), -pi / 2, 300)
+    player = Player(Vector2(950, 50), pi / 2, 300)
     walls = [
          RectangleWall(RectangleAABB(Vector2(800, 0.0), Vector2(900, 400))),
          RectangleWall(RectangleAABB(Vector2(500, 400), Vector2(900, 500))),

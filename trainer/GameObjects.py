@@ -7,7 +7,7 @@ from typing import List, NamedTuple, Tuple, Optional
 
 import numpy as np
 
-from module.Util import Vector2, RectangleAABB, get_rectangle_points, make_rectangle, rectangles_intersect, \
+from trainer.Util import Vector2, RectangleAABB, get_rectangle_points, make_rectangle, rectangles_intersect, \
     point_in_rectangle_aabb, Ray, Collision, ray_rectangle_aabb_intersect, LineSegment, \
     segment_aabb_intersect, LineSegments, np_line_segments_intersect
 
