@@ -1,4 +1,4 @@
-from typing import Tuple, NamedTuple, Callable, Optional, List
+from typing import Tuple, NamedTuple, Callable, Optional, List, Union, Deque
 
 import keras
 import numpy as np
@@ -8,7 +8,7 @@ from numpy.core.multiarray import ndarray
 from tensorflow import losses
 from tensorflow.python.training.saver import Saver
 
-from GameObjects import World, PlayerMovementDirection, Player
+from GameObjects import World, PlayerMovementDirection, Player, SensedObject
 
 
 class Experiences(NamedTuple):
@@ -37,7 +37,7 @@ class EpisodeBuffer:
 
         self._array_size = self._buffer_size * 2
         self._current_ptr = 0
-        self._indices_for_sampling = np.arange(0, self._buffer_size, 1)
+        self._indices_for_sampling = np.arange(self._buffer_size)
 
         self._state_buffers = []
         self._next_states_buffer = []
@@ -92,7 +92,7 @@ class EpisodeBuffer:
             self._reset_buffer(self._action_index_buffer)
             self._reset_buffer(self._reward_buffer)
             self._reset_buffer(self._terminate_buffer)
-            self._current_ptr = 0
+            self._current_ptr = self._buffer_size
 
         for i in range(len(states)):
             self._fill_buffer(self._state_buffers[i], states[i], n_experiences)
@@ -105,11 +105,19 @@ class EpisodeBuffer:
         self._current_ptr += n_experiences
 
     def sample(self, sample_size: int) -> Experiences:
-        indices = np.random.choice(
-            self._current_ptr - self._buffer_size + self._indices_for_sampling,
-            size=sample_size,
-            replace=False
-        )
+        assert self._current_ptr >= sample_size
+        if self._current_ptr < self._buffer_size:
+            indices = np.random.choice(
+                self._current_ptr,
+                size=sample_size,
+                replace=False
+            )
+        else:
+            indices = np.random.choice(
+                self._current_ptr - self._buffer_size + self._indices_for_sampling,
+                size=sample_size,
+                replace=False
+            )
         return Experiences(
             [buf[indices] for buf in self._state_buffers],
             [buf[indices] for buf in self._next_states_buffer],
@@ -129,86 +137,99 @@ class LearningProcessConfig(NamedTuple):
     n_training_episodes: int
     pre_train_steps: int
     max_ep_length: int
+    buffer_size: int
 
 
 class DeepQLearnerWithExperienceReplay:
     _game_world: World
-    _n_output_angles: int
+    _output_angles: np.ndarray
     _session: tf.Session
-    _window_size: int
     _time_between_actions_s: float
+    _n_steps_back: int
     _process_config: LearningProcessConfig
 
-    _n_extra_inputs: int
-    _n_sensor_inputs: int
-
     _player: Player
-    _output_angles: np.ndarray
-    _sensor_input_array: np.ndarray
+    _n_sensor_types: int
+    _n_output_angles: int
+    _n_actions: int
     _n_sensors: int
+    _n_sensor_inputs: int
+    _max_sensor_distance: float
+
+    _sensor_state_shape: Tuple
+    _heat_state_shape: Tuple
+    _state_shapes: List[Tuple]
+
     _sensor_input_tensor: tf.Tensor
     _heat_input_tensor: tf.Tensor
-    _position_input_tensor: tf.Tensor
     _action_index_tensor: tf.Tensor
     _chosen_actions_tensor: tf.Tensor
     _rewards_tensor: tf.Tensor
     _terminates_tensor: tf.Tensor
     _actions_qualities_tensor: tf.Tensor
     _replay_next_states_qualities_tensor: tf.Tensor
-    _replay_states_qualities: tf.Tensor
     _update_model: tf.Operation
     _saver: Saver
 
     def __init__(self,
                  world: World,
-                 n_output_angles: int,
+                 output_angles: np.ndarray,
                  session: tf.Session,
-                 window_size: int,
                  time_between_actions_s: float,
+                 n_steps_back: int,
                  process_config: LearningProcessConfig):
-        assert window_size % 2 == 1
-
         self._game_world = world
-        self._window_size = window_size
-        self._n_output_angles = n_output_angles
+        self._output_angles = output_angles
         self._session = session
         self._time_between_actions_s = time_between_actions_s
+        self._n_steps_back = n_steps_back
         self._process_config = process_config
 
         self._player = self._game_world.player
+        # noinspection PyTypeChecker
+        self._n_sensor_types = len(SensedObject) + 1
+        self._n_output_angles = self._output_angles.size
         self._n_actions = self._n_output_angles + 1
-        self._output_angles = np.linspace(-np.pi, np.pi, self._n_output_angles, False)
         self._n_sensors = self._game_world.proximity_sensors_np.n_sensors
-        self._n_extra_inputs = self._window_size // 2
-        self._n_sensor_inputs = self._n_sensors + self._n_extra_inputs * 2
+        self._n_sensor_inputs = self._n_sensors * self._n_sensor_types * self._n_steps_back
+        self._max_sensor_distance = self._game_world.proximity_sensors_np.max_distance
 
-        self._sensor_state_shape = (1, self._n_sensor_inputs, 5)
-        self._heat_state_shape = (1,)
-        self._position_state_shape = (2,)
+        self._sensor_state_shape = (self._n_sensor_inputs,)
+        self._heat_state_shape = (self._n_steps_back,)
+        # self._angle_state_shape = (self._n_steps_back,)
+        # self._position_state_shape = (2,)
         self._state_shapes = [
             self._sensor_state_shape,
             self._heat_state_shape,
+            # self._angle_state_shape,
             # self._position_state_shape,
         ]
 
-    def _get_sensor_input(self) -> np.ndarray:
-        distances = self._game_world.proximity_sensors_np.distances
-        object_types = self._game_world.proximity_sensors_np.object_types
-        prox_sens_data = np.zeros(shape=(1, self._n_sensors, 5), dtype=np.float32)
-        prox_sens_data[0, :, 0] = distances
-        prox_sens_data[0, np.arange(0, self._n_sensors), object_types] = 1
-
-        result_indices = np.fmod(
-            np.arange(0, self._n_sensors + self._n_extra_inputs * 2) - self._n_extra_inputs,
-            self._n_sensors
-        )
-        return np.reshape(prox_sens_data[0, result_indices, :], (1, *self._sensor_state_shape))
-
-    def _get_heat_input(self) -> np.ndarray:
-        return np.array([[self._player.heat]])
+    def get_heat_input(self) -> np.ndarray:
+        return np.array([self._player.heat])
 
     def _get_position_input(self) -> np.ndarray:
         return np.array([self._player.position.x, self._player.position.y])
+
+    def _get_angle_movement(self, action_index: int) -> Tuple[float, PlayerMovementDirection]:
+        if action_index == self._n_output_angles:
+            return self._player.angle, PlayerMovementDirection.NONE
+        else:
+            return self._player.angle + self._output_angles[action_index], PlayerMovementDirection.FORWARD
+
+    def _apply_action(self, action_index: int) -> None:
+        angle, movement = self._get_angle_movement(action_index)
+        self._game_world.update_player_angle(angle)
+        self._game_world.move_player(self._time_between_actions_s, movement)
+        self._game_world.update_state(self._time_between_actions_s)
+
+    def get_sensor_input(self) -> np.ndarray:
+        distances = self._game_world.proximity_sensors_np.distances
+        object_types = self._game_world.proximity_sensors_np.object_types
+        prox_sens_data = np.zeros(shape=(self._n_sensors, self._n_sensor_types), dtype=np.float32)
+        prox_sens_data[:, 0] = distances / self._max_sensor_distance
+        prox_sens_data[np.arange(0, self._n_sensors), object_types] = 1
+        return prox_sens_data.flatten()
 
     def initialize(self) -> None:
         keras.backend.set_session(self._session)
@@ -232,51 +253,54 @@ class DeepQLearnerWithExperienceReplay:
         #     name="position_input"
         # )
 
-        conv1 = Conv2D(
-            filters=self._n_sensors // 2,
-            kernel_size=(1, self._window_size),
-            data_format="channels_last",
-            activation="relu",
-            name="conv1",
-        )
-        conv_output = conv1(self._sensor_input_tensor)
-
-        conv2 = Conv2D(
-            filters=self._n_sensors // 4,
-            kernel_size=(1, self._window_size),
-            data_format="channels_last",
-            activation="relu",
-            name="conv2",
-        )
-        conv_output = conv2(conv_output)
-
-        flatten_conv = Flatten(name="flatten_conv")
-        flattened_conv = flatten_conv(conv_output)
+        # conv1 = Conv2D(
+        #     filters=self._n_sensors // 2,
+        #     kernel_size=(1, self._window_size),
+        #     data_format="channels_last",
+        #     activation="relu",
+        #     name="conv1",
+        # )
+        # conv_output = conv1(self._sensor_input_tensor)
+        #
+        # conv2 = Conv2D(
+        #     filters=self._n_sensors // 4,
+        #     kernel_size=(1, self._window_size),
+        #     data_format="channels_last",
+        #     activation="relu",
+        #     name="conv2",
+        # )
+        # conv_output = conv2(conv_output)
+        #
+        # flatten_conv = Flatten(name="flatten_conv")
+        # flattened_conv = flatten_conv(conv_output)
 
         concat = Concatenate(name="concat")
-        x = concat([
-            flattened_conv,
+        concatenated_input = concat([
+            self._sensor_input_tensor,
             self._heat_input_tensor,
             # self._position_input_tensor,
         ])
 
-        hidden_dense1 = Dense(units=self._n_sensors * 4, activation="relu", name="hidden_dense1")
+        hidden_dense0 = Dense(units=self._n_sensor_inputs * 8, activation="relu", name="hidden_dense1")
+        x = hidden_dense0(concatenated_input)
+
+        hidden_dense1 = Dense(units=self._n_sensor_inputs * 4, activation="relu", name="hidden_dense1")
         x = hidden_dense1(x)
 
-        hidden_dense2 = Dense(units=self._n_sensors * 2, activation="relu", name="hidden_dense2")
+        hidden_dense2 = Dense(units=self._n_sensor_inputs * 2, activation="relu", name="hidden_dense2")
         x = hidden_dense2(x)
 
-        hidden_dense3 = Dense(units=self._n_sensors, activation="relu", name="hidden_dense3")
+        hidden_dense3 = Dense(units=self._n_sensor_inputs, activation="relu", name="hidden_dense3")
         x = hidden_dense3(x)
 
-        output_layer = Dense(units=self._n_output_angles + 1, name="action_quality", )
+        output_layer = Dense(units=self._n_output_angles + 1, name="action_quality")
         self._actions_qualities_tensor = output_layer(x)
         self._action_index_tensor = tf.argmax(self._actions_qualities_tensor, axis=1, name="output")
 
         ################################################################################
         #                             Updating Q-network                               #
         ################################################################################
-        self._chosen_actions_tensor = tf.placeholder(dtype=np.int32, shape=(None,), name="chosen_actions")
+        self._chosen_actions_tensor = tf.placeholder(dtype=tf.int32, shape=(None,), name="chosen_actions")
         self._rewards_tensor = tf.placeholder(dtype=tf.float32, shape=(None,), name="discounted_rewards")
         self._terminates_tensor = tf.placeholder(dtype=tf.float32, shape=(None,), name="episode_terminated")
         self._replay_next_states_qualities_tensor = tf.placeholder(
@@ -293,7 +317,7 @@ class DeepQLearnerWithExperienceReplay:
             * self._process_config.reward_discount_coef
         )
 
-        tf_range = tf.range(0, tf.shape(self._rewards_tensor)[0], dtype=np.int32)
+        tf_range = tf.range(0, tf.shape(self._rewards_tensor)[0], dtype=tf.int32)
         state_indices = tf.stack((tf_range, self._chosen_actions_tensor), axis=1)
         current_quality = tf.gather_nd(self._actions_qualities_tensor, state_indices)
 
@@ -308,24 +332,41 @@ class DeepQLearnerWithExperienceReplay:
         self._session.run(tf.global_variables_initializer())
         self._saver = tf.train.Saver()
 
-    def _get_angle_movement(self, action_index: int) -> Tuple[float, PlayerMovementDirection]:
-        if action_index == self._n_output_angles:
-            return self._game_world.player.angle, PlayerMovementDirection.NONE
-        else:
-            return self._output_angles[action_index], PlayerMovementDirection.FORWARD
-
-    def _apply_action(self, action_index: int) -> None:
-        angle, movement = self._get_angle_movement(action_index)
-        self._game_world.update_player_angle(angle)
-        self._game_world.move_player(self._time_between_actions_s, movement)
-        self._game_world.update_state(self._time_between_actions_s)
-
     def apply_action_from_network(self) -> None:
         action_index = self._session.run(self._action_index_tensor, feed_dict={
-            self._sensor_input_tensor: self._get_sensor_input(),
-            self._heat_input_tensor: self._get_heat_input(),
+            self._sensor_input_tensor: self.get_sensor_input(),
+            self._heat_input_tensor: self.get_heat_input(),
         })[0]
         self._apply_action(action_index)
+
+    def apply_action_from_input(self,
+                                prev_sensor_states: Deque[np.ndarray],
+                                prev_heat_states: Deque[np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
+
+        assert len(prev_sensor_states) == len(prev_heat_states) == self._n_steps_back - 1
+
+        current_sensors = self.get_sensor_input()
+        current_heat = self.get_heat_input()
+
+        input_sensors = np.hstack((*prev_sensor_states, current_sensors)).reshape((1, *self._sensor_state_shape))
+        input_heat = np.hstack((*prev_heat_states, current_heat)).reshape((1, *self._heat_state_shape))
+
+        qualities = self._session.run(self._actions_qualities_tensor, feed_dict={
+            self._sensor_input_tensor: input_sensors,
+            self._heat_input_tensor: input_heat,
+        })[0]
+        print(qualities)
+        action_index = np.argmax(qualities[:-1])
+        print(action_index)
+
+        # action_index = self._session.run(self._action_index_tensor, feed_dict={
+        #     self._sensor_input_tensor: input_sensors,
+        #     self._heat_input_tensor: input_heat,
+        # })[0]
+
+        self._apply_action(action_index)
+
+        return current_sensors, current_heat
 
     def load_model(self, path):
         print("Loading model...")
@@ -343,12 +384,12 @@ class DeepQLearnerWithExperienceReplay:
         random_action_prob = self._process_config.start_random_action_prob
         total_steps = 0
         pre_trained = False
+        ep_buf = EpisodeBuffer(self._state_shapes, self._process_config.buffer_size)
 
         for i_episode in range(self._process_config.n_training_episodes):
-            ep_buf = EpisodeBuffer(self._state_shapes, 1000)
             self._game_world.reset()
-            current_sensor_state = self._get_sensor_input()
-            current_heat_state = self._get_heat_input()
+            current_sensor_state = np.tile(self.get_sensor_input(), self._n_steps_back)
+            current_heat_state = np.tile(self.get_heat_input(), self._n_steps_back)
             # current_position_state = np.reshape(self._get_position_input(), (1, *self._position_state_shape))
             reward_sum = 0
             reward_sums = []
@@ -364,28 +405,32 @@ class DeepQLearnerWithExperienceReplay:
                     action_index = np.array([np.random.randint(0, self._n_actions)])
                 else:
                     action_index = self._session.run(self._action_index_tensor, feed_dict={
-                        self._sensor_input_tensor: current_sensor_state,
-                        self._heat_input_tensor: current_heat_state,
+                        self._sensor_input_tensor: current_sensor_state.reshape(1, *self._sensor_state_shape),
+                        self._heat_input_tensor: current_heat_state.reshape(1, *self._heat_state_shape),
                         # self._position_input_tensor: current_position_state,
                     })
 
                 self._apply_action(action_index[0])
 
-                reward = self._game_world.player.reward_sum
+                reward = self._player.reward
+                self._player.reset_reward_after_step()
                 game_over = self._game_world.game_over
-                next_sensor_state = self._get_sensor_input()
-                next_heat_state = self._get_heat_input()
+                step_state = self.get_sensor_input()
+                next_sensor_state = np.hstack((current_sensor_state[self._n_sensors * self._n_sensor_types:],
+                                               step_state))
+                step_heat = self.get_heat_input()
+                next_heat_state = np.hstack((current_heat_state[1:], step_heat))
                 # next_position_state = np.reshape(self._get_position_input(), (1, *self._position_state_shape))
 
                 ep_buf.add_experiences(Experiences(
                     [
-                        current_sensor_state,
-                        current_heat_state,
+                        current_sensor_state.reshape((1, *self._sensor_state_shape)),
+                        current_heat_state.reshape((1, *self._heat_state_shape)),
                         # current_position_state
                     ],
                     [
-                        next_sensor_state,
-                        next_heat_state,
+                        next_sensor_state.reshape((1, *self._sensor_state_shape)),
+                        next_heat_state.reshape((1, *self._heat_state_shape)),
                         # next_position_state
                     ],
                     action_index,
@@ -394,15 +439,14 @@ class DeepQLearnerWithExperienceReplay:
                 ))
 
                 reward_sum += reward
-                current_sensor_state = next_sensor_state
-                current_heat_state = next_heat_state
-                # current_position_state = next_position_state
+                current_sensor_state[:] = next_sensor_state
+                current_heat_state[:] = next_heat_state
 
                 if total_steps > self._process_config.pre_train_steps:
                     if random_action_prob > self._process_config.end_random_action_prob:
                         random_action_prob -= step_drop
 
-                    if i_step % self._process_config.update_frequency == 0:
+                    if total_steps % self._process_config.update_frequency == 0:
                         train_experiences = ep_buf.sample(self._process_config.replay_size)
                         (
                             sensors,
@@ -447,7 +491,7 @@ class DeepQLearnerWithExperienceReplay:
             if i_episode % 10 == 0:
                 print(total_steps, np.mean(reward_sums[-10:]), random_action_prob)
 
-            if save_path is not None and i_episode % 50 == 0:
+            if save_path is not None and i_episode % 200 == 0:
                 self._saver.save(self._session, f"{save_path}/model-{i_episode}.ckpt")
                 print(f"Saved model at episode {i_episode}.")
 

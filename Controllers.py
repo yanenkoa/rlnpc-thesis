@@ -71,6 +71,7 @@ class KeyboardController:
             elapsed_time_s = self._get_elapsed_time_s()
             self._update_player(elapsed_time_s)
             self._world.update_state(elapsed_time_s)
+            self._world.player.reset_reward_after_step()
             self._render_world.update()
             if self._input_device.is_key_down(Key.esc):
                 break

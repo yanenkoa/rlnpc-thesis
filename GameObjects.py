@@ -109,8 +109,8 @@ class Player:
         self._reward -= elapsed_time_s * (self._reward_loss_ps + self._heat * self._reward_lost_heat_coef)
 
     def reset_reward_after_step(self) -> None:
+        self._reward_sum += self._reward
         self._reward = 0
-        self._reward_sum += self._reward_sum
 
     def reset(self) -> None:
         self._angle = self._init_angle
@@ -118,6 +118,7 @@ class Player:
         self._gold = 0
         self._heat = 0.
         self._reward = 0.
+        self._reward_sum = 0.
 
     @property
     def angle(self) -> float:
@@ -137,6 +138,10 @@ class Player:
 
     @property
     def reward_sum(self):
+        return self._reward_sum
+
+    @property
+    def reward(self):
         return self._reward
 
 
@@ -199,8 +204,8 @@ class RectangleWall(Wall):
 
 
 class GoldChest:
-    width: float = 10
-    height: float = 10
+    width: float = 20
+    height: float = 20
 
     _collected: bool = False
     _gold: int
@@ -334,7 +339,9 @@ class ProximitySensors:
 
         self._n_sensors = angles.size
         player_loc = self._player.position
-        self._end_biases_units = np.vstack((np.cos(self._angles), np.sin(self._angles))).T
+        player_angle = self._player.angle
+        self._end_biases_units = np.vstack((np.cos(self._angles + player_angle),
+                                            np.sin(self._angles + player_angle))).T
         self._player_loc_np = np.array([player_loc.x, player_loc.y], dtype=np.float32)
         self._points_np = np.zeros(shape=(self._n_sensors, 2), dtype=np.float32)
         self._distances = np.zeros(shape=(self._n_sensors,), dtype=np.float32)
@@ -383,6 +390,9 @@ class ProximitySensors:
 
     def _reset_sensor_segments(self) -> None:
         self._sensor_segments.first_points[:] = self._player_loc_np
+        player_angle = self._player.angle
+        self._end_biases_units = np.vstack((np.cos(self._angles + player_angle),
+                                            np.sin(self._angles + player_angle))).T
         end_biases = self._end_biases_units * self._max_distance
         self._sensor_segments.second_points[:] = end_biases + self._player_loc_np
 
@@ -490,6 +500,10 @@ class ProximitySensors:
     @property
     def n_sensors(self) -> int:
         return self._n_sensors
+
+    @property
+    def max_distance(self):
+        return self._max_distance
 
 
 class ProximitySensor:
