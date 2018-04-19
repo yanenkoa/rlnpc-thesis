@@ -1,5 +1,5 @@
 from collections import namedtuple
-from typing import Tuple, NamedTuple, Callable, Optional, List, Deque
+from typing import Tuple, NamedTuple, Callable, Optional, List
 
 import keras
 import numpy as np
@@ -375,8 +375,8 @@ class DeepQLearnerWithExperienceReplay:
         self._apply_action(action_index)
 
     def apply_action_from_input(self,
-                                prev_sensor_states: Deque[np.ndarray],
-                                prev_heat_states: Deque[np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
+                                prev_sensor_states,
+                                prev_heat_states) -> Tuple[np.ndarray, np.ndarray]:
 
         assert len(prev_sensor_states) == len(prev_heat_states) == self._n_steps_back - 1
 
@@ -390,9 +390,7 @@ class DeepQLearnerWithExperienceReplay:
             self._sensor_input_tensor: input_sensors,
             self._heat_input_tensor: input_heat,
         })[0]
-        print(qualities)
         action_index = np.argmax(qualities[:-1])  # type: int
-        print(action_index)
 
         # action_index = self._session.run(self._action_index_tensor, feed_dict={
         #     self._sensor_input_tensor: input_sensors,
@@ -404,7 +402,7 @@ class DeepQLearnerWithExperienceReplay:
         return current_sensors, current_heat
 
     def load_model(self, path):
-        print("Loading model...")
+        tf.logging.info("Loading model...")
         checkpoint = tf.train.get_checkpoint_state(path)
         self._saver.restore(self._session, checkpoint.model_checkpoint_path)
 
@@ -420,6 +418,7 @@ class DeepQLearnerWithExperienceReplay:
         total_steps = 0
         pre_trained = False
         ep_buf = EpisodeBuffer(self._state_shapes, self._process_config.buffer_size)
+        reward_sums = []
 
         for i_episode in range(self._process_config.n_training_episodes):
             self._game_world.reset()
@@ -427,14 +426,13 @@ class DeepQLearnerWithExperienceReplay:
             current_heat_state = np.tile(self.get_heat_input(), self._n_steps_back)
             # current_position_state = np.reshape(self._get_position_input(), (1, *self._position_state_shape))
             reward_sum = 0
-            reward_sums = []
 
             for i_step in range(self._process_config.max_ep_length):
 
                 total_steps += 1
                 if not pre_trained and total_steps > self._process_config.pre_train_steps:
                     pre_trained = True
-                    print("Pre-training ended.")
+                    tf.logging.info("Pre-training ended.")
 
                 if total_steps < self._process_config.pre_train_steps or np.random.rand(1) < random_action_prob:
                     action_index = np.array([np.random.randint(0, self._n_actions)])
@@ -521,12 +519,19 @@ class DeepQLearnerWithExperienceReplay:
 
             reward_sums.append(reward_sum)
 
-            if i_episode % 10 == 0:
-                print(total_steps, np.mean(reward_sums[-10:]), random_action_prob)
+            if i_episode % 10 == 0 and i_episode != 0:
+                tf.logging.info(
+                    "Total steps: {total_steps}, Mean reward sum: {mean_reward_sum}, e = {random_action_prob}".format(
+                        total_steps=total_steps,
+                        mean_reward_sum=np.mean(reward_sums[-10:]),
+                        random_action_prob=random_action_prob
+                    )
+                )
+                reward_sums.clear()
 
-            if save_path is not None and i_episode % 200 == 0:
+            if save_path is not None and i_episode % 100 == 0 and i_episode != 0:
                 self._saver.save(self._session, "{save_path}/model-{i_episode}.ckpt".format(save_path=save_path,
                                                                                             i_episode=i_episode))
-                print("Saved model at episode {i_episode}.".format(i_episode=i_episode))
+                tf.logging.info("Saved model at episode {i_episode}.".format(i_episode=i_episode))
 
         self._saver.save(self._session, "{save_path}/model-final.ckpt".format(save_path=save_path))

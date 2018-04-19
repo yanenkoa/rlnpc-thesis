@@ -1,3 +1,5 @@
+from argparse import ArgumentParser
+
 import numpy as np
 import tensorflow as tf
 
@@ -6,7 +8,10 @@ from trainer.GameObjects import World
 from trainer.RL import DeepQLearnerWithExperienceReplay, LearningProcessConfig
 
 
-def cloud_ml_training(world_config):
+def cloud_ml_training(world_config, path: str):
+    tf.logging.set_verbosity(tf.logging.DEBUG)
+    tf.logging.info("Writing to {path}".format(path=path))
+
     world = World(*world_config)
     config = LearningProcessConfig(
         replay_size=4 * 64,
@@ -25,11 +30,18 @@ def cloud_ml_training(world_config):
     learner = DeepQLearnerWithExperienceReplay(world, output_angles, session, 1. / 15, 5, config)
     learner.initialize()
 
-    learner.train("data")
+    tf.logging.info("Shall we?")
+    learner.train(path)
 
 
 def main():
-    cloud_ml_training(config_one())
+    tf.logging.set_verbosity(tf.logging.DEBUG)
+
+    argparser = ArgumentParser()
+    argparser.add_argument("--job-dir", default="data")
+
+    args = argparser.parse_args()
+    cloud_ml_training(config_one(), args.job_dir)
 
 
 if __name__ == '__main__':

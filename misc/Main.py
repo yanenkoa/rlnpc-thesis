@@ -4,11 +4,10 @@ import numpy as np
 import tensorflow as tf
 
 from misc.Controllers import KeyboardController
-from trainer.Configs import config_one, config_two, config_empty
-from trainer.GameObjects import Player, RectangleWall, GoldChest, HeatSource, Portal, World, ProximitySensors
 from misc.InputDevice import InputDevice
+from trainer.Configs import config_one
+from trainer.GameObjects import World
 from trainer.RL import DeepQLearnerWithExperienceReplay, LearningProcessConfig
-from trainer.Util import Vector2, RectangleAABB
 
 
 def cloud_ml_training(world_config):
@@ -19,7 +18,7 @@ def cloud_ml_training(world_config):
         reward_discount_coef=0.9,
         start_random_action_prob=1.,
         end_random_action_prob=0.1,
-        annealing_steps=10000,
+        annealing_steps=int(1e6),
         n_training_episodes=10000,
         pre_train_steps=5000,
         max_ep_length=(2 * 60 * 30),
