@@ -19,7 +19,7 @@ def cloud_ml_training(world_config, path: str):
         reward_discount_coef=0.9,
         start_random_action_prob=1.,
         end_random_action_prob=0.1,
-        annealing_steps=10000,
+        annealing_steps=int(1e7),
         n_training_episodes=10000,
         pre_train_steps=5000,
         max_ep_length=(2 * 60 * 30),
