@@ -1,11 +1,11 @@
 from collections import namedtuple
-from typing import Tuple, NamedTuple, Callable, Optional, List
+from typing import Tuple, Callable, Optional, List
 
 import keras
 import numpy as np
 import tensorflow as tf
 from keras.layers import Dense, Concatenate
-from tensorflow import losses, Tensor
+from tensorflow import losses
 from tensorflow.python.training.saver import Saver
 
 from trainer.GameObjects import World, PlayerMovementDirection, Player, SensedObject
@@ -18,12 +18,6 @@ Experiences = namedtuple("Experiences", [
     "rewards",
     "terminates"
 ])
-# class Experiences(NamedTuple):
-#     states: List[np.ndarray]
-#     next_states: List[np.ndarray]
-#     action_indices: np.ndarray
-#     rewards: np.ndarray
-#     terminates: np.ndarray
 
 
 class EpisodeBuffer:
@@ -136,20 +130,6 @@ class EpisodeBuffer:
         )
 
 
-# LearningProcessConfig = namedtuple("LearningProcessConfig", [
-#     "replay_size",
-#     "update_frequency",
-#     "reward_discount_coef",
-#     "start_random_action_prob",
-#     "end_random_action_prob",
-#     "annealing_steps",
-#     "n_training_episodes",
-#     "pre_train_steps",
-#     "max_ep_length",
-#     "buffer_size",
-# ])
-
-
 LearningProcessConfig = namedtuple("LearningProcessConfig", [
     "replay_size",
     "update_frequency",
@@ -162,17 +142,6 @@ LearningProcessConfig = namedtuple("LearningProcessConfig", [
     "max_ep_length",
     "buffer_size",
 ])
-# class LearningProcessConfig(NamedTuple):
-#     replay_size = ...  # type: int
-#     update_frequency = ...  # type: int
-#     reward_discount_coef = ...  # type: float
-#     start_random_action_prob = ...  # type: float
-#     end_random_action_prob = ...  # type: float
-#     annealing_steps = ...  # type: int
-#     n_training_episodes = ...  # type: int
-#     pre_train_steps = ...  # type: int
-#     max_ep_length = ...  # type: int
-#     buffer_size = ...  # type: int
 
 
 class DeepQLearnerWithExperienceReplay:
