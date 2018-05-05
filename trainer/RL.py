@@ -1,5 +1,5 @@
-from collections import namedtuple
-from typing import Tuple, Callable, Optional, List
+from collections import namedtuple, deque
+from typing import Tuple, Callable, Optional, List, Deque
 
 import keras
 import numpy as np
@@ -20,6 +20,15 @@ Experiences = namedtuple("Experiences", [
 ])
 
 
+# Experience = namedtuple("Experience", [
+#     "state",
+#     "next_state",
+#     "action_index",
+#     "reward",
+#     "terminated",
+# ])
+#
+
 class EpisodeBuffer:
     """
     :type _buffer_size: int
@@ -35,7 +44,7 @@ class EpisodeBuffer:
     :type _terminate_buffer: np.ndarray
     """
 
-    def __init__(self, state_shapes: List[Tuple], buffer_size: int = 50000):
+    def __init__(self, state_shapes: List[Tuple], buffer_size: int):
         self._buffer_size = buffer_size
 
         self._array_size = self._buffer_size * 2
@@ -63,7 +72,7 @@ class EpisodeBuffer:
         )
         self._reward_buffer = np.empty(
             shape=(self._array_size,),
-            dtype=np.int32,
+            dtype=np.float32,
         )
         self._terminate_buffer = np.empty(
             shape=(self._array_size,),
@@ -102,13 +111,29 @@ class EpisodeBuffer:
             self._fill_buffer(self._next_states_buffer[i], next_states[i], n_experiences)
 
         self._fill_buffer(self._action_index_buffer, action_indices, n_experiences)
-        self._fill_buffer(self._reward_buffer, action_indices, n_experiences)
-        self._fill_buffer(self._terminate_buffer, action_indices, n_experiences)
+        self._fill_buffer(self._reward_buffer, rewards, n_experiences)
+        self._fill_buffer(self._terminate_buffer, terminates, n_experiences)
 
         self._current_ptr += n_experiences
 
+    # def get_indices(self, sample_size: int):
+    #     if self._current_ptr < self._buffer_size:
+    #         # print("first")
+    #         indices = np.random.choice(
+    #             self._current_ptr,
+    #             size=sample_size,
+    #             replace=False
+    #         )
+    #     else:
+    #         # print("second")
+    #         indices = np.random.choice(
+    #             self._current_ptr - self._buffer_size + self._indices_for_sampling,
+    #             size=sample_size,
+    #             replace=False
+    #         )
+    #     return indices
+
     def sample(self, sample_size: int) -> Experiences:
-        assert self._current_ptr >= sample_size
         if self._current_ptr < self._buffer_size:
             indices = np.random.choice(
                 self._current_ptr,
@@ -128,6 +153,83 @@ class EpisodeBuffer:
             self._reward_buffer[indices],
             self._terminate_buffer[indices]
         )
+#
+#     def sample_indices(self, indices: np.ndarray) -> Experiences:
+#         return Experiences(
+#             [buf[indices] for buf in self._state_buffers],
+#             [buf[indices] for buf in self._next_states_buffer],
+#             self._action_index_buffer[indices],
+#             self._reward_buffer[indices],
+#             self._terminate_buffer[indices]
+#         )
+#
+#
+# class EpisodeBufferSimple:
+#     _buffer_size = ...  # type: int
+#     _buffer = ...  # type: Deque[Experience]
+#
+#     def __init__(self, buffer_size: int):
+#         self._buffer_size = buffer_size
+#         self._buffer = deque(maxlen=self._buffer_size)
+#
+#     def add_experience(self, experience: Experience) -> None:
+#         self._buffer.append(experience)
+#
+#     def sample(self, sample_size: int) -> List[Experience]:
+#         indices = np.random.choice(
+#             len(self._buffer),
+#             size=sample_size,
+#             replace=False,
+#         )
+#         return [self._buffer[index] for index in indices]
+#
+#     def sample_indices(self, indices: np.ndarray) -> List[Experience]:
+#         return [self._buffer[index] for index in indices]
+#
+#
+# def experience_list_to_experiences(state_shapes: List[Tuple], experience_list: List[Experience]) -> Experiences:
+#     n_experiences = len(experience_list)
+#     states = [np.zeros((n_experiences, *state_shape), dtype=np.float32) for state_shape in state_shapes]
+#     next_states = [np.zeros((n_experiences, *state_shape), dtype=np.float32) for state_shape in state_shapes]
+#     action_indices = np.zeros(n_experiences, dtype=np.int32)
+#     rewards = np.zeros(n_experiences, dtype=np.float32)
+#     terminates = np.zeros(n_experiences, dtype=np.bool)
+#
+#     for i, experience in enumerate(experience_list):
+#         state, next_state, action_index, reward, terminated = experience
+#         assert len(state_shapes) == len(state) == len(next_state)
+#         for j, (state_aspect, next_state_aspect) in enumerate(zip(state, next_state)):
+#             states[j][i, :] = state_aspect
+#             next_states[j][i, :] = next_state_aspect
+#         action_indices[i] = action_index
+#         rewards[i] = reward
+#         terminates[i] = terminated
+#
+#     return Experiences(
+#         states,
+#         next_states,
+#         action_indices,
+#         rewards,
+#         terminates,
+#     )
+#
+#
+# def assert_experiences_equals(e1: Experiences, e2: Experiences):
+#     assert len(e1.states) == len(e2.states) == len(e1.next_states) == len(e2.next_states)
+#     # print(len(e1.states))
+#     for i in range(len(e1.states)):
+#         assert e1.states[i].shape == e2.states[i].shape == e1.next_states[i].shape == e2.next_states[i].shape
+#         # print(i)
+#         # print(e1.states[i].shape)
+#         # print(e2.states[i].shape)
+#         # print(e1.states[i])
+#         # print(e2.states[i])
+#         assert np.allclose(e1.states[i], e2.states[i])
+#         assert np.allclose(e1.next_states[i], e2.next_states[i])
+#     assert np.allclose(e1.action_indices, e2.action_indices)
+#     # print(e1.rewards, e2.rewards)
+#     assert np.allclose(e1.rewards, e2.rewards)
+#     assert np.allclose(e1.terminates, e2.terminates)
 
 
 LearningProcessConfig = namedtuple("LearningProcessConfig", [
@@ -387,6 +489,7 @@ class DeepQLearnerWithExperienceReplay:
         total_steps = 0
         pre_trained = False
         ep_buf = EpisodeBuffer(self._state_shapes, self._process_config.buffer_size)
+        # ep_buf_simple = EpisodeBufferSimple(self._process_config.buffer_size)
         reward_sums = []
 
         for i_episode in range(self._process_config.n_training_episodes):
@@ -439,6 +542,21 @@ class DeepQLearnerWithExperienceReplay:
                     np.array([reward], dtype=np.float32),
                     np.array([game_over], dtype=np.bool),
                 ))
+                # ep_buf_simple.add_experience(Experience(
+                #     [np.array(current_sensor_state), np.array(current_heat_state)],
+                #     [np.array(next_sensor_state), np.array(next_heat_state)],
+                #     action_index[0],
+                #     reward,
+                #     game_over,
+                # ))
+                # print(ep_buf._reward_buffer[max(0, ep_buf._current_ptr - ep_buf._buffer_size): ep_buf._current_ptr].reshape(
+                #     (min(ep_buf._current_ptr, ep_buf._buffer_size), self._n_steps_back)
+                # ))
+                # [buffer_entry.state for buffer_entry in ep_buf_simple._buffer]
+                # print(np.array([buffer_entry.reward for buffer_entry in ep_buf_simple._buffer]))
+                # print(ep_buf_simple._buffer[0:len(ep_buf_simple._buffer)].state[0].reshape(
+                #     (self._n_steps_back, self._n_sensors, self._n_sensor_types)
+                # ))
 
                 reward_sum += reward
                 current_sensor_state[:] = next_sensor_state
@@ -450,6 +568,15 @@ class DeepQLearnerWithExperienceReplay:
 
                     if total_steps % self._process_config.update_frequency == 0:
                         train_experiences = ep_buf.sample(self._process_config.replay_size)
+                        # # train_experiences = ep_buf.sample(self._process_config.replay_size)
+                        # indices = ep_buf.get_indices(self._process_config.replay_size)
+                        # train_experiences = ep_buf.sample_indices(indices)
+                        # experiences_list = ep_buf_simple.sample_indices(
+                        #     indices - (ep_buf._current_ptr - ep_buf._buffer_size)
+                        # )
+                        # other_experiences = experience_list_to_experiences(self._state_shapes, experiences_list)
+                        # assert_experiences_equals(train_experiences, other_experiences)
+
                         (
                             sensors,
                             heat,

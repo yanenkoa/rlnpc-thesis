@@ -33,13 +33,13 @@ def cloud_ml_training(world_config):
 
 
 def main():
-    world = World(*config_one())
+    # world = World(*config_one())
 
-    turn_rate_ps = pi / 0.8
-    input_device = InputDevice()
-    controller = KeyboardController(turn_rate_ps, input_device, world)
-
-    controller.loop()
+    # turn_rate_ps = pi / 0.8
+    # input_device = InputDevice()
+    # controller = KeyboardController(turn_rate_ps, input_device, world)
+    #
+    # controller.loop()
 
     # config = LearningProcessConfig(
     #     replay_size=4 * 64,
@@ -67,7 +67,7 @@ def main():
     # #     if input_device.is_key_down("d"):
     # #         render_world.stop_drawing()
     # #     render_world.update()
-    #
+
     # render_world: RenderWorld = RenderWorld(world)
     # learner.load_model("/media/d/learning_data")
     #
