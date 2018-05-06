@@ -1,5 +1,5 @@
 from collections import namedtuple, deque
-from typing import Tuple, Callable, Optional, List, Deque
+from typing import Tuple, Callable, Optional, List
 
 import keras
 import numpy as np
