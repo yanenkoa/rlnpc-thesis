@@ -21,9 +21,9 @@ def cloud_ml_training(world_config, path: str):
         end_random_action_prob=0.1,
         annealing_steps=int(1e7),
         n_training_episodes=10000,
-        pre_train_steps=5000,
+        pre_train_steps=10000,
         max_ep_length=(2 * 60 * 30),
-        buffer_size=2000,
+        buffer_size=10000,
     )
     session = tf.Session()
     output_angles = np.linspace(-np.pi / 2, np.pi / 2, 16, False)

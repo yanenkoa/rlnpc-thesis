@@ -70,7 +70,7 @@ def config_one():
 
     proximity_sensors_np = ProximitySensors(
         player,
-        np.linspace(-np.pi / 2, np.pi / 2, 40, False),
+        np.linspace(-np.pi / 2, np.pi / 2, 128, False),
         500,
         walls,
         gold_chests,
