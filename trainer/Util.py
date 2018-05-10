@@ -1,6 +1,6 @@
 from collections import namedtuple
 from math import sin, cos, sqrt
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, Union
 
 import numpy as np
 
@@ -12,6 +12,9 @@ class Vector2:
     def __init__(self, x: float, y: float) -> None:
         self.x = x
         self.y = y
+
+    def clone(self):
+        return Vector2(self.x, self.y)
 
     def __abs__(self):
         return sqrt(self.x ** 2 + self.y ** 2)
@@ -212,6 +215,8 @@ Collisions = namedtuple("Collisions", [
 
 
 def np_line_segments_intersect(s1: LineSegments, s2: LineSegments) -> Collisions:
+    assert s1.first_points.shape == s1.second_points.shape == s2.first_points.shape == s2.second_points.shape, (s1.first_points.shape, s1.second_points.shape, s2.first_points.shape, s2.second_points.shape)
+
     p = s1.first_points
     r = s1.second_points - s1.first_points
     q = s2.first_points

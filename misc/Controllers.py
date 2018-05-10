@@ -1,4 +1,5 @@
-from time import time
+from time import time, sleep
+from typing import Tuple
 
 from pynput.keyboard import Key
 
@@ -33,24 +34,23 @@ class KeyboardController:
         self._last_update_s = cur_time_s
         return elapsed_time_s
 
-    def _update_player(self, elapsed_time_s: float) -> None:
-
-        if self._input_device.is_key_down("w"):
-            self._world.move_player(elapsed_time_s, PlayerMovementDirection.FORWARD)
-        elif self._input_device.is_key_down("s"):
-            self._world.move_player(elapsed_time_s, PlayerMovementDirection.BACKWARD)
-        else:
-            self._world.move_player(elapsed_time_s, PlayerMovementDirection.NONE)
-
+    def _get_player_update(self, elapsed_time_s) -> Tuple[float, PlayerMovementDirection]:
         if self._input_device.is_key_down("d"):
             angle_increment = self._get_angle_increment(elapsed_time_s, True)
         elif self._input_device.is_key_down("a"):
             angle_increment = self._get_angle_increment(elapsed_time_s, False)
         else:
             angle_increment = 0.0
-
         new_angle = self._player.angle + angle_increment
-        self._world.update_player_angle(new_angle)
+
+        if self._input_device.is_key_down("w"):
+            movement_direction = PlayerMovementDirection.FORWARD
+        elif self._input_device.is_key_down("s"):
+            movement_direction = PlayerMovementDirection.BACKWARD
+        else:
+            movement_direction = PlayerMovementDirection.NONE
+
+        return new_angle, movement_direction
 
     def _start_rendering(self) -> None:
         if self._input_device.is_key_down("v"):
@@ -62,13 +62,15 @@ class KeyboardController:
 
     def loop(self):
         while True:
+            sleep(1. / 60)
+
             self._reset()
-            # self._start_rendering()
             self._render_world.start_drawing()
+
             elapsed_time_s = self._get_elapsed_time_s()
-            self._update_player(elapsed_time_s)
-            self._world.update_state(elapsed_time_s)
-            self._world.player.reset_reward_after_step()
+            new_angle, movement_direction = self._get_player_update(elapsed_time_s)
+            self._world.update_world_and_player_and_get_reward(elapsed_time_s, new_angle, movement_direction)
+
             self._render_world.update()
             if self._input_device.is_key_down(Key.esc):
                 break

@@ -243,7 +243,12 @@ LearningProcessConfig = namedtuple("LearningProcessConfig", [
     "pre_train_steps",
     "max_ep_length",
     "buffer_size",
+    "n_skipped_frames"
 ])
+
+
+class ActorCriticRecurrentLearner:
+    _game_world = ...  # type: World
 
 
 class DeepQLearnerWithExperienceReplay:
@@ -262,7 +267,7 @@ class DeepQLearnerWithExperienceReplay:
     _n_sensor_inputs = ...  # type: int
     _max_sensor_distance = ...  # type: float
     _sensor_state_shape = ...  # type: Tuple
-    _heat_state_shape = ...  # type: Tuple
+    _heat_state_shape = ...  # type: Tu1ple
     _state_shapes = ...  # type: List[Tuple]
 
     _sensor_input_tensor = ...  # type: tf.Tensor
@@ -323,11 +328,9 @@ class DeepQLearnerWithExperienceReplay:
         else:
             return self._player.angle + self._output_angles[action_index], PlayerMovementDirection.FORWARD
 
-    def _apply_action(self, action_index: int) -> None:
+    def _apply_action_get_reward(self, action_index: int) -> float:
         angle, movement = self._get_angle_movement(action_index)
-        self._game_world.update_player_angle(angle)
-        self._game_world.move_player(self._time_between_actions_s, movement)
-        self._game_world.update_state(self._time_between_actions_s)
+        return self._game_world.update_world_and_player_and_get_reward(self._time_between_actions_s, angle, movement)
 
     def get_sensor_input(self) -> np.ndarray:
         distances = self._game_world.proximity_sensors_np.distances
@@ -438,13 +441,6 @@ class DeepQLearnerWithExperienceReplay:
         self._session.run(tf.global_variables_initializer())
         self._saver = tf.train.Saver()
 
-    def apply_action_from_network(self) -> None:
-        action_index = self._session.run(self._action_index_tensor, feed_dict={
-            self._sensor_input_tensor: self.get_sensor_input(),
-            self._heat_input_tensor: self.get_heat_input(),
-        })[0]
-        self._apply_action(action_index)
-
     def apply_action_from_input(self,
                                 prev_sensor_states,
                                 prev_heat_states) -> Tuple[np.ndarray, np.ndarray]:
@@ -468,7 +464,7 @@ class DeepQLearnerWithExperienceReplay:
         #     self._heat_input_tensor: input_heat,
         # })[0]
 
-        self._apply_action(action_index)
+        self._apply_action_get_reward(action_index)
 
         return current_sensors, current_heat
 
@@ -497,7 +493,6 @@ class DeepQLearnerWithExperienceReplay:
             current_sensor_state = np.tile(self.get_sensor_input(), self._n_steps_back)
             current_heat_state = np.tile(self.get_heat_input(), self._n_steps_back)
             # current_position_state = np.reshape(self._get_position_input(), (1, *self._position_state_shape))
-            reward_sum = 0
 
             for i_step in range(self._process_config.max_ep_length):
 
@@ -515,14 +510,16 @@ class DeepQLearnerWithExperienceReplay:
                         # self._position_input_tensor: current_position_state,
                     })
 
-                self._apply_action(action_index[0])
-
-                reward = self._player.reward
-                self._player.reset_reward_after_step()
+                skipped_frames_reward_sum = 0
+                for _ in range(self._process_config.n_skipped_frames):
+                    skipped_frames_reward_sum += self._apply_action_get_reward(action_index[0])
                 game_over = self._game_world.game_over
+
                 step_state = self.get_sensor_input()
-                next_sensor_state = np.hstack((current_sensor_state[self._n_sensors * self._n_sensor_types:],
-                                               step_state))
+                next_sensor_state = np.hstack((
+                    current_sensor_state[self._n_sensors * self._n_sensor_types:],
+                    step_state
+                ))
                 step_heat = self.get_heat_input()
                 next_heat_state = np.hstack((current_heat_state[1:], step_heat))
                 # next_position_state = np.reshape(self._get_position_input(), (1, *self._position_state_shape))
@@ -539,7 +536,7 @@ class DeepQLearnerWithExperienceReplay:
                         # next_position_state
                     ],
                     action_index,
-                    np.array([reward], dtype=np.float32),
+                    np.array([skipped_frames_reward_sum], dtype=np.float32),
                     np.array([game_over], dtype=np.bool),
                 ))
                 # ep_buf_simple.add_experience(Experience(
@@ -549,16 +546,18 @@ class DeepQLearnerWithExperienceReplay:
                 #     reward,
                 #     game_over,
                 # ))
-                # print(ep_buf._reward_buffer[max(0, ep_buf._current_ptr - ep_buf._buffer_size): ep_buf._current_ptr].reshape(
-                #     (min(ep_buf._current_ptr, ep_buf._buffer_size), self._n_steps_back)
-                # ))
+                # print(
+                #     ep_buf._reward_buffer[max(0, ep_buf._current_ptr - ep_buf._buffer_size): ep_buf._current_ptr]
+                #     .reshape(
+                #         (min(ep_buf._current_ptr, ep_buf._buffer_size), self._n_steps_back)
+                #     )
+                # )
                 # [buffer_entry.state for buffer_entry in ep_buf_simple._buffer]
                 # print(np.array([buffer_entry.reward for buffer_entry in ep_buf_simple._buffer]))
                 # print(ep_buf_simple._buffer[0:len(ep_buf_simple._buffer)].state[0].reshape(
                 #     (self._n_steps_back, self._n_sensors, self._n_sensor_types)
                 # ))
 
-                reward_sum += reward
                 current_sensor_state[:] = next_sensor_state
                 current_heat_state[:] = next_heat_state
 
@@ -613,7 +612,7 @@ class DeepQLearnerWithExperienceReplay:
                 if game_over:
                     break
 
-            reward_sums.append(reward_sum)
+            reward_sums.append(self._game_world.player.reward_sum)
 
             if i_episode % 10 == 0 and i_episode != 0:
                 tf.logging.info(

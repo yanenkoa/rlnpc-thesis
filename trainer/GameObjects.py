@@ -62,8 +62,7 @@ class Player:
     width = 15.0  # type: float
     height = 15.0  # type: float
 
-    _reward_loss_ps = 5.  # type: float
-    _reward_lost_heat_coef = 1.  # type: float
+    _reward_lost_heat_coef_ps = 1.  # type: float
     _portal_reward = 500.  # type: float
 
     _init_angle = ...  # type: float
@@ -110,8 +109,11 @@ class Player:
     def set_heat(self, heat: float) -> None:
         self._heat = heat
 
-    def update_reward(self, elapsed_time_s: float) -> None:
-        self._reward -= elapsed_time_s * (self._reward_loss_ps + self._heat * self._reward_lost_heat_coef)
+    def apply_passive_reward_penalty(self, elapsed_time_s: float) -> None:
+        self._reward -= elapsed_time_s * self._heat * self._reward_lost_heat_coef_ps
+
+    def add_custom_reward(self, custom_reward: float) -> None:
+        self._reward += custom_reward
 
     def reset_reward_after_step(self) -> None:
         self._reward_sum += self._reward
@@ -131,7 +133,7 @@ class Player:
 
     @property
     def position(self) -> Vector2:
-        return self._position
+        return self._position.clone()
 
     @property
     def gold(self) -> int:
@@ -248,7 +250,7 @@ class GoldChest:
 
 
 class HeatSource:
-    _coef = 300.  # type: float
+    _coef = 0.1  # type: float
 
     _heat = ...  # type: float
     _location = ...  # type: Vector2
@@ -270,9 +272,9 @@ class HeatSource:
 
         distance2 = (other_location.x - self._location.x) ** 2 + (other_location.y - self._location.y) ** 2
         if distance2 <= self._radius ** 2:
-            return self._heat
+            return self._coef * self._heat
         else:
-            return self._coef * self._heat / distance2
+            return self._coef * self._heat / distance2 ** (1 / 2)
 
     @property
     def location(self):
@@ -308,6 +310,29 @@ class SensedObject(Enum):
     WALL = 2
     GOLD = 3
     PORTAL = 4
+
+
+def get_rect_segments_np(rect: RectangleAABB) -> Tuple[np.ndarray, np.ndarray]:
+    points = get_rectangle_points(rect)
+    first_points = np.array([
+        [points.lower_left.x, points.lower_left.y],
+        [points.lower_right.x, points.lower_right.y],
+        [points.upper_right.x, points.upper_right.y],
+        [points.upper_left.x, points.upper_left.y],
+    ])
+    second_points = np.array([
+        [points.lower_right.x, points.lower_right.y],
+        [points.upper_right.x, points.upper_right.y],
+        [points.upper_left.x, points.upper_left.y],
+        [points.lower_left.x, points.lower_left.y],
+    ])
+    return first_points, second_points
+
+
+def loop_array(arr: np.ndarray, pre_loop_size: int) -> None:
+    size = arr.shape[0]
+    indices = np.arange(size) % pre_loop_size
+    arr[:] = arr[indices, :]
 
 
 class ProximitySensors:
@@ -371,29 +396,6 @@ class ProximitySensors:
         )
         self._init_segments()
 
-    @staticmethod
-    def _get_rect_segments_np(rect: RectangleAABB) -> Tuple[np.ndarray, np.ndarray]:
-        points = get_rectangle_points(rect)
-        first_points = np.array([
-            [points.lower_left.x, points.lower_left.y],
-            [points.lower_right.x, points.lower_right.y],
-            [points.upper_right.x, points.upper_right.y],
-            [points.upper_left.x, points.upper_left.y],
-        ])
-        second_points = np.array([
-            [points.lower_right.x, points.lower_right.y],
-            [points.upper_right.x, points.upper_right.y],
-            [points.upper_left.x, points.upper_left.y],
-            [points.lower_left.x, points.lower_left.y],
-        ])
-        return first_points, second_points
-
-    @staticmethod
-    def _loop_array(arr: np.ndarray, pre_loop_size: int) -> None:
-        size = arr.shape[0]
-        indices = np.arange(size) % pre_loop_size
-        arr[:] = arr[indices, :]
-
     def _reset_sensor_segments(self) -> None:
         self._sensor_segments.first_points[:] = self._player_loc_np
         player_angle = self._player.angle
@@ -405,26 +407,26 @@ class ProximitySensors:
     def _init_segments(self) -> None:
         for i, wall in enumerate(self._walls):
             indices = np.arange(i * 4, i * 4 + 4)
-            fp, sp = self._get_rect_segments_np(wall.rectangle)
+            fp, sp = get_rect_segments_np(wall.rectangle)
             self._wall_segments.first_points[indices, :] = fp
             self._wall_segments.second_points[indices, :] = sp
-        self._loop_array(self._wall_segments.first_points, len(self._walls) * 4)
-        self._loop_array(self._wall_segments.second_points, len(self._walls) * 4)
+        loop_array(self._wall_segments.first_points, len(self._walls) * 4)
+        loop_array(self._wall_segments.second_points, len(self._walls) * 4)
 
         for i, chest in enumerate(self._gold_chests):
             indices = np.arange(i * 4, i * 4 + 4)
-            fp, sp = self._get_rect_segments_np(chest.rectangle)
+            fp, sp = get_rect_segments_np(chest.rectangle)
             self._chest_segments.first_points[indices, :] = fp
             self._chest_segments.second_points[indices, :] = sp
-        self._loop_array(self._chest_segments.first_points, len(self._gold_chests) * 4)
-        self._loop_array(self._chest_segments.second_points, len(self._gold_chests) * 4)
+        loop_array(self._chest_segments.first_points, len(self._gold_chests) * 4)
+        loop_array(self._chest_segments.second_points, len(self._gold_chests) * 4)
 
         indices = np.arange(4)
-        fp, sp = self._get_rect_segments_np(self._portal.rectangle)
+        fp, sp = get_rect_segments_np(self._portal.rectangle)
         self._portal_segments.first_points[indices, :] = fp
         self._portal_segments.second_points[indices, :] = sp
-        self._loop_array(self._portal_segments.first_points, 4)
-        self._loop_array(self._portal_segments.second_points, 4)
+        loop_array(self._portal_segments.first_points, 4)
+        loop_array(self._portal_segments.second_points, 4)
 
         self._reset_sensor_segments()
         self._points_np[:] = self._sensor_segments.second_points
@@ -602,6 +604,33 @@ class ProximitySensor:
         return self._current_obj
 
 
+class WallsCollisionChecker:
+    _walls = ...  # type: List[RectangleWall]
+
+    _wall_segments = ...  # type: LineSegments
+
+    def __init__(self, walls: List[Wall]):
+        self._walls = walls
+
+        self._wall_segments = LineSegments(
+            np.empty(shape=(len(self._walls) * 4, 2), dtype=np.float32),
+            np.empty(shape=(len(self._walls) * 4, 2), dtype=np.float32),
+        )
+
+        for i, wall in enumerate(self._walls):
+            indices = np.arange(i * 4, i * 4 + 4)
+            fp, sp = get_rect_segments_np(wall.rectangle)
+            self._wall_segments.first_points[indices, :] = fp
+            self._wall_segments.second_points[indices, :] = sp
+
+    def segment_collides_with_walls(self, line_segment: LineSegment) -> bool:
+        line_segments = LineSegments(
+            np.tile(np.array([line_segment.a.x, line_segment.a.y]), (len(self._walls) * 4, 1)),
+            np.tile(np.array([line_segment.b.x, line_segment.b.y]), (len(self._walls) * 4, 1)),
+        )
+        return np.any(np_line_segments_intersect(line_segments, self._wall_segments).intersect_indicators)
+
+
 class World:
     _width = ...  # type: int
     _height = ...  # type: int
@@ -613,6 +642,16 @@ class World:
     _validator = ...  # type: LocationValidator
     _game_over = ...  # type: bool
     _proximity_sensors_np = ...  # type: ProximitySensors
+    _remember_position_interval_s = ...  # type: float
+    _visit_reward_impact_decay_per_s = ...  # type: float
+    _n_nearby_visit_points = ...  # type: int
+    _visit_coef_ps = ...  # type: float
+
+    _current_time_s = ...  # type: float
+    _last_saved_position_time_s = ...  # type: float
+    _player_visits = ...  # type: List[Tuple[float, Vector2]]
+
+    _wall_collision_checker = ...  # type: WallsCollisionChecker
 
     def __init__(
             self,
@@ -642,12 +681,22 @@ class World:
 
         self._proximity_sensors_np = proximity_sensors_np
 
-    def update_player_angle(self, new_angle: float) -> None:
+        self._last_saved_position_time_s = 0.
+        self._remember_position_interval_s = 0.1
+        self._visit_reward_impact_decay_per_s = 0.99
+        self._n_nearby_visit_points = 100
+        self._visit_coef_ps = 500.
+
+        self._current_time_s = 0.
+        self._player_visits = []
+
+        self._wall_collision_checker = WallsCollisionChecker(self._walls)
+
+    def _update_player_angle(self, new_angle: float) -> None:
         if not self._game_over:
             self._player.update_angle(new_angle)
 
-    def move_player(self, elapsed_time_s: float, direction: PlayerMovementDirection) -> None:
-
+    def _move_player(self, elapsed_time_s: float, direction: PlayerMovementDirection) -> None:
         if self._game_over:
             return
 
@@ -664,8 +713,7 @@ class World:
                 translation = Vector2(0, 0)
         self._player.apply_translation(translation)
 
-    def update_state(self, elapsed_time_s: float) -> None:
-
+    def _update_state(self, elapsed_time_s: float) -> None:
         portal_rect = self._portal.rectangle
         player_rect = self._player.get_rectangle()
         if rectangles_intersect(player_rect, portal_rect).intersects:
@@ -685,7 +733,56 @@ class World:
 
         self._proximity_sensors_np.update()
 
-        self._player.update_reward(elapsed_time_s)
+        self._player.apply_passive_reward_penalty(elapsed_time_s)
+
+    def _update_player_positions(self) -> None:
+        if self._current_time_s - self._last_saved_position_time_s < self._remember_position_interval_s:
+            return
+        self._last_saved_position_time_s = self._current_time_s
+        self._player_visits.append((self._current_time_s, self._player.position))
+
+    def _get_nearby_visits(self, elapsed_time_s: float) -> Tuple[float, List[Tuple[float, float]]]:
+        current_position = self._player.position
+        relevant_visits = list(
+            sorted(
+                (
+                    (self._current_time_s - time, abs(current_position - visit_position))
+                    for time, visit_position in self._player_visits
+                    if current_position == visit_position or (
+                        not self._wall_collision_checker.segment_collides_with_walls(
+                            LineSegment(current_position, visit_position)
+                        )
+                    )
+                ),
+                key=lambda t: t[1]
+            )
+        )[:self._n_nearby_visit_points]
+        reward_impact = sum(
+            (self._visit_coef_ps * self._visit_reward_impact_decay_per_s ** time_diff / np.sqrt(
+                pos_diff if pos_diff > 15 else 15
+            ))
+            for time_diff, pos_diff in relevant_visits
+        ) * elapsed_time_s / len(relevant_visits) if len(relevant_visits) else 0
+        print(reward_impact)
+        return reward_impact, relevant_visits
+
+    def update_world_and_player_and_get_reward(
+            self,
+            elapsed_time_s: float,
+            new_angle: float,
+            direction: PlayerMovementDirection
+    ) -> float:
+        self._update_player_angle(new_angle)
+        self._move_player(elapsed_time_s, direction)
+        self._update_state(elapsed_time_s)
+        self._current_time_s += elapsed_time_s
+        self._update_player_positions()
+        reward_impact, _ = self._get_nearby_visits(elapsed_time_s)
+        self._player.add_custom_reward(-reward_impact)
+
+        reward = self._player.reward
+        self._player.reset_reward_after_step()
+        return reward
 
     def reset(self) -> None:
         self._game_over = False
@@ -693,6 +790,9 @@ class World:
         for chest in self._gold_chests:
             chest.reset()
         self._proximity_sensors_np.reset()
+        self._player_visits = []
+        self._current_time_s = 0.
+        self._last_saved_position_time_s = 0.
 
     @property
     def player(self) -> Player:
@@ -729,3 +829,7 @@ class World:
     @property
     def proximity_sensors_np(self) -> ProximitySensors:
         return self._proximity_sensors_np
+
+    @property
+    def player_visits(self):
+        return self._player_visits
