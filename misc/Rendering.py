@@ -23,7 +23,7 @@ def unpack_rectangle(r: RectangleAABB) -> UnpackedRectangle:
     return xll, yll, xur, yur
 
 
-def make_unpacked_inverted_rectangle(center: Vector2, width, height: float, y_cap: float) -> UnpackedRectangle:
+def make_unpacked_inverted_rectangle(center: Vector2, width: float, height: float, y_cap: float) -> UnpackedRectangle:
     return unpack_rectangle(
         invert_y_rectangle(
             make_rectangle(center, width, height),
@@ -68,6 +68,7 @@ class RenderWorld:
     _gold_chest_figs = ...  # type: Dict[GoldChest, Any]
     _heat_source_figs = ...  # type: Dict[HeatSource, Any]
     _prox_sens_figs = ...  # type: Dict[int, Any]
+    _visit_figs = ...  # type: Dict[int, Any]
 
     def __init__(self, world: World):
 
@@ -159,6 +160,8 @@ class RenderWorld:
             )
             self._prox_sens_figs[i] = prox_sens_fig
 
+        self._visit_figs = {}
+
     def _get_player_fig_coords(self) -> UnpackedRectangle:
         return make_unpacked_inverted_rectangle(
             self._world.player.position,
@@ -228,6 +231,22 @@ class RenderWorld:
             else:
                 raise ValueError("sensed_obj is fucked up")
             self._canvas.itemconfig(self._prox_sens_figs[i], fill=color)
+
+        player_visits = self._world.player_visits
+        if len(player_visits) > len(self._visit_figs):
+            self._visit_figs[len(player_visits) - 1] = self._canvas.create_oval(
+                *make_unpacked_inverted_rectangle(player_visits[-1][1], 5, 5, self._world.height),
+                fill="black",
+                width=1,
+                tag="visit_fig{i}".format(i=len(player_visits) - 1)
+            )
+
+        visible_visits = self._world.visible_visits()
+        for i in range(len(player_visits)):
+            if i not in visible_visits:
+                self._canvas.itemconfig(self._visit_figs[i], fill="grey")
+            else:
+                self._canvas.itemconfig(self._visit_figs[i], fill="black")
 
     def update(self):
         if not self._started:

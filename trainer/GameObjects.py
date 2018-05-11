@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from collections import namedtuple
 from enum import Enum
 from math import sin, cos
-from typing import List, NamedTuple, Tuple, Optional
+from typing import List, NamedTuple, Tuple, Optional, Set
 
 import numpy as np
 
@@ -681,13 +681,13 @@ class World:
 
         self._proximity_sensors_np = proximity_sensors_np
 
-        self._last_saved_position_time_s = 0.
         self._remember_position_interval_s = 0.1
-        self._visit_reward_impact_decay_per_s = 0.99
+        self._visit_reward_impact_decay_per_s = 0.92
         self._n_nearby_visit_points = 100
-        self._visit_coef_ps = 500.
+        self._visit_coef_ps = 2000.
 
         self._current_time_s = 0.
+        self._last_saved_position_time_s = 0.
         self._player_visits = []
 
         self._wall_collision_checker = WallsCollisionChecker(self._walls)
@@ -700,17 +700,20 @@ class World:
         if self._game_over:
             return
 
+        player_pos = self._player.position
         translation = self._player.get_translation(elapsed_time_s, direction)
         new_player_points = get_rectangle_points(
             make_rectangle(
-                self._player.position + translation,
+                player_pos + translation,
                 self._player.width,
                 self._player.height
             )
         )
         for p in new_player_points:
-            if not self._validator.is_valid(p):
-                translation = Vector2(0, 0)
+            if not self._validator.is_valid(Vector2(p.x, player_pos.y)):
+                translation.x = 0
+            if not self._validator.is_valid(Vector2(player_pos.x, p.y)):
+                translation.y = 0
         self._player.apply_translation(translation)
 
     def _update_state(self, elapsed_time_s: float) -> None:
@@ -740,6 +743,7 @@ class World:
             return
         self._last_saved_position_time_s = self._current_time_s
         self._player_visits.append((self._current_time_s, self._player.position))
+        # print(self._player_visits)
 
     def _get_nearby_visits(self, elapsed_time_s: float) -> Tuple[float, List[Tuple[float, float]]]:
         current_position = self._player.position
@@ -748,21 +752,28 @@ class World:
                 (
                     (self._current_time_s - time, abs(current_position - visit_position))
                     for time, visit_position in self._player_visits
-                    if current_position == visit_position or (
-                        not self._wall_collision_checker.segment_collides_with_walls(
+                    if (
+                        current_position != visit_position
+                        and not self._wall_collision_checker.segment_collides_with_walls(
                             LineSegment(current_position, visit_position)
                         )
+                        and self._current_time_s - time > 1.
                     )
                 ),
                 key=lambda t: t[1]
             )
         )[:self._n_nearby_visit_points]
+        # print([time_diff for time_diff, _ in relevant_visits])
+        # print([
+        #     self._visit_reward_impact_decay_per_s ** time_diff
+        #     for time_diff, pos_diff in relevant_visits
+        # ])
         reward_impact = sum(
-            (self._visit_coef_ps * self._visit_reward_impact_decay_per_s ** time_diff / np.sqrt(
-                pos_diff if pos_diff > 15 else 15
+            (self._visit_coef_ps * self._visit_reward_impact_decay_per_s ** time_diff / (
+                pos_diff if pos_diff > 50 else 50
             ))
             for time_diff, pos_diff in relevant_visits
-        ) * elapsed_time_s / len(relevant_visits) if len(relevant_visits) else 0
+        ) * elapsed_time_s / self._n_nearby_visit_points
         print(reward_impact)
         return reward_impact, relevant_visits
 
@@ -783,6 +794,12 @@ class World:
         reward = self._player.reward
         self._player.reset_reward_after_step()
         return reward
+
+    def visible_visits(self) -> Set[int]:
+        current_position = self._player.position
+        return {i for i, (_, visit_pos) in enumerate(self._player_visits)
+                if not self._wall_collision_checker.segment_collides_with_walls(LineSegment(current_position, visit_pos))}
+        pass
 
     def reset(self) -> None:
         self._game_over = False
