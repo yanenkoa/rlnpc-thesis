@@ -250,6 +250,251 @@ LearningProcessConfig = namedtuple("LearningProcessConfig", [
 
 class ActorCriticRecurrentLearner:
     _game_world = ...  # type: World
+    _session = ...  # type: tf.Session
+    _time_between_actions_s = ...  # type: float
+    _process_config = ...  # type: LearningProcessConfig
+
+    _player = ...  # type: Player
+    _n_sensor_types = ...  # type: int
+    _n_actions = ...  # type: int
+    _n_sensors = ...  # type: int
+    _n_sensor_inputs = ...  # type: int
+    _max_sensor_distance = ...  # type: float
+    _sensor_state_shape = ...  # type: Tuple
+    _heat_state_shape = ...  # type: Tuple
+    _state_shapes = ...  # type: List[Tuple]
+    _state_names = ...  # type: List[str]
+
+    _decision_input_tensors = ...  # type: List[tf.Tensor]
+    _decision_layers = ...  # type: List[Layer]
+    _decision_output = ...  # type: tf.Tensor
+    _train_input_tensors = ...  # type: List[tf.Tensor]
+    _train_layers = ...  # type: List[Layer]
+    _train_output = ...  # type: tf.Tensor
+
+    def __init__(self,
+                 world: World,
+                 session: tf.Session,
+                 time_between_actions_s: float,
+                 window_size: int,
+                 process_config: LearningProcessConfig):
+        self._game_world = world
+        self._session = session
+        self._time_between_actions_s = time_between_actions_s
+        self._window_size = window_size
+        self._process_config = process_config
+
+        self._player = self._game_world.player
+        # noinspection PyTypeChecker
+        self._n_sensor_types = len(SensedObject) + 1
+        self._n_sensors = self._game_world.proximity_sensors_np.n_sensors
+        self._n_extra_inputs = self._window_size // 2
+        self._n_sensor_inputs = self._n_sensors + self._n_extra_inputs * 2
+        self._max_sensor_distance = self._game_world.proximity_sensors_np.max_distance
+
+        self._sensor_state_shape = (1, self._n_sensor_inputs, self._n_sensor_types)
+        self._heat_state_shape = (1,)
+        self._exploration_pressure_shape = (1,)
+
+        self._state_shapes = [
+            self._sensor_state_shape,
+            self._heat_state_shape,
+            self._exploration_pressure_shape,
+        ]
+
+        self._state_names = [
+            "sensor",
+            "heat",
+            "exploration_pressure",
+        ]
+
+    def _get_sensor_input(self) -> np.ndarray:
+        distances = self._game_world.proximity_sensors_np.distances
+        object_types = self._game_world.proximity_sensors_np.object_types
+        prox_sens_data = np.zeros(shape=(1, self._n_sensors, self._n_sensor_types), dtype=np.float32)
+        prox_sens_data[0, :, 0] = distances
+        prox_sens_data[0, np.arange(self._n_sensors), object_types] = 1
+
+        result_indices = np.fmod(
+            np.arange(0, self._n_sensors + self._n_extra_inputs * 2) - self._n_extra_inputs,
+            self._n_sensors
+        )
+        return np.reshape(prox_sens_data[0, result_indices, :], (1, *self._sensor_state_shape))
+
+    def _get_heat_input(self) -> np.ndarray:
+        return np.array([[self._game_world.player.heat]], dtype=np.float32)
+
+    def _get_exploration_pressure_input(self) -> np.ndarray:
+        return np.array([[self._game_world.exploration_pressure]], dtype=np.float32)
+
+    def _initialize_network(
+            self,
+            conved_input_index: int,
+            decision_mode: bool
+    ) -> Tuple[List[tf.Tensor], List[Layer], tf.Tensor]:
+
+        batch_size = 1 if decision_mode else None
+        mode_str = "decision" if decision_mode else "training"
+        input_tensors = [
+            tf.placeholder(
+                dtype=tf.float32,
+                shape=(batch_size, *shape),
+                name="{}_{}_input".format(mode_str, name)
+            )
+            for shape, name in zip(self._state_shapes, self._state_names)
+        ]
+
+        conved_input = input_tensors[conved_input_index]
+
+        conv_layer_1 = Conv2D(
+            filters=16,
+            kernel_size=(1, self._window_size),
+            data_format="channels_last",
+            activation="relu",
+            name="{}_conv1".format(mode_str),
+        )
+        conv_output_1 = conv_layer_1(conved_input)
+
+        conv_layer_2 = Conv2D(
+            filters=16,
+            kernel_size=(1, self._window_size),
+            data_format="channels_last",
+            activation="relu",
+            name="{}_conv2".format(mode_str),
+        )
+        conv_output_2 = conv_layer_2(conv_output_1)
+
+        _, _, n_pixels, n_filters = conv_output_2.shape
+        flattened_conv = tf.reshape(
+            tensor=conv_output_2,
+            shape=(-1, n_pixels * n_filters),
+            name="{}_flattened_conv".format(mode_str)
+        )
+
+        concatted = Concatenate(name="{}_concat".format(mode_str))(
+            [flattened_conv]
+            + [
+                input_tensor
+                for i, input_tensor in enumerate(input_tensors)
+                if i != conved_input_index
+            ]
+        )
+
+        _, n_units = concatted.shape
+        n_units = int(n_units)
+
+        if decision_mode:
+            pre_lstm_reshaped = tf.reshape(concatted, (1, 1, n_units), name="{}_pre_lstm_reshaped".format(mode_str))
+            stateful = True
+        else:
+            pre_lstm_reshaped = tf.reshape(concatted, (1, -1, n_units), name="{}_pre_lstm_reshaped".format(mode_str))
+            stateful = False
+
+        lstm_layer_1 = LSTM(
+            units=n_units // 2,
+            stateful=stateful,
+            name="{}_lstm_layer_1".format(mode_str),
+            return_sequences=True,
+        )
+        lstm_output_1 = lstm_layer_1(pre_lstm_reshaped)
+
+        lstm_layer_2 = LSTM(
+            units=n_units // 2,
+            stateful=stateful,
+            name="{}_lstm_layer_2".format(mode_str),
+        )
+        lstm_output_2 = lstm_layer_2(lstm_output_1)
+
+        # dense_layer_1 = Dense(units=n_units // 2, activation="relu", name="{}_hidden_dense_1".format(mode_str))
+        # dense_output_1 = dense_layer_1(lstm_output_2)
+        #
+        # dense_layer_2 = Dense(units=n_units // 2, activation="relu", name="{}_hidden_dense_2".format(mode_str))
+        # dense_output_2 = dense_layer_2(dense_output_1)
+
+        output_layer = Dense(
+            units=2,
+            activation="sigmoid",
+            name="{}_output_sin_cos".format(mode_str)
+        )
+        # output_sin_cos = output_layer(dense_output_2)
+        output_sin_cos = output_layer(lstm_output_2)
+        if decision_mode:
+            self._decision_output_sin_cos = output_sin_cos
+
+        output_angle = tf.atan2(output_sin_cos[:, 0], output_sin_cos[:, 1], name="{}_output_angle".format(mode_str))
+
+        layers = [
+            conv_layer_1,
+            conv_layer_2,
+            lstm_layer_1,
+            lstm_layer_2,
+            # dense_layer_1,
+            # dense_layer_2,
+        ]
+
+        return input_tensors, layers, output_angle
+
+    def _get_input_list(self) -> List[np.ndarray]:
+        return [
+            self._get_sensor_input(),
+            self._get_heat_input(),
+            self._get_exploration_pressure_input(),
+        ]
+
+    def _copy_weights_from_train_to_decision(self) -> None:
+        for decision_layer, train_layer in zip(self._decision_layers, self._train_layers):
+            decision_layer.set_weights(train_layer.get_weights())
+
+    def initialize(self) -> None:
+        keras.backend.set_session(self._session)
+
+        self._decision_input_tensors, self._decision_layers, self._decision_output = self._initialize_network(0, True)
+        self._train_input_tensors, self._train_layers, self._train_output = self._initialize_network(0, False)
+
+        self._session.run(tf.global_variables_initializer())
+
+    def loop(self, step_hook: Optional[Callable[[], None]] = None):
+        ep_buf = EpisodeBuffer(self._state_shapes, 5000, np.float32)
+
+        i = 0
+        while True:
+            before_ts = time()
+
+            inputs = self._get_input_list()
+
+            sin_cos, new_angle = self._session.run(
+                [self._decision_output_sin_cos, self._decision_output],
+                feed_dict=dict(list(zip(self._decision_input_tensors, inputs)))
+            )
+            print(sin_cos)
+            print(new_angle)
+
+            reward = self._game_world.update_world_and_player_and_get_reward(
+                self._time_between_actions_s, new_angle[0], PlayerMovementDirection.FORWARD
+            )
+
+            next_inputs = self._get_input_list()
+
+            ep_buf.add_experiences(Experiences(
+                inputs,
+                next_inputs,
+                new_angle,
+                np.array([reward], dtype=np.float32),
+                np.array([self._game_world.game_over], dtype=np.bool),
+            ))
+
+            if step_hook is not None:
+                step_hook()
+
+            after_ts = time()
+
+            print(after_ts - before_ts)
+
+            if i != 0 and i % 10 == 0:
+                print("copying")
+                self._copy_weights_from_train_to_decision()
+
+            i += 1
 
 
 class DeepQLearnerWithExperienceReplay:
