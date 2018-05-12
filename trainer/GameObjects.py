@@ -250,7 +250,7 @@ class GoldChest:
 
 
 class HeatSource:
-    _coef = 0.1  # type: float
+    _coef = 1  # type: float
 
     _heat = ...  # type: float
     _location = ...  # type: Vector2
@@ -651,6 +651,8 @@ class World:
     _last_saved_position_time_s = ...  # type: float
     _player_visits = ...  # type: List[Tuple[float, Vector2]]
 
+    _exploration_pressure = ...  # type: float
+
     _wall_collision_checker = ...  # type: WallsCollisionChecker
 
     def __init__(
@@ -684,11 +686,13 @@ class World:
         self._remember_position_interval_s = 0.1
         self._visit_reward_impact_decay_per_s = 0.92
         self._n_nearby_visit_points = 100
-        self._visit_coef_ps = 2000.
+        self._visit_coef_ps = 100000.
 
         self._current_time_s = 0.
         self._last_saved_position_time_s = 0.
         self._player_visits = []
+
+        self._exploration_pressure = 0.
 
         self._wall_collision_checker = WallsCollisionChecker(self._walls)
 
@@ -738,14 +742,15 @@ class World:
 
         self._player.apply_passive_reward_penalty(elapsed_time_s)
 
+        self._exploration_pressure = self._get_nearby_visits(elapsed_time_s)
+
     def _update_player_positions(self) -> None:
         if self._current_time_s - self._last_saved_position_time_s < self._remember_position_interval_s:
             return
         self._last_saved_position_time_s = self._current_time_s
         self._player_visits.append((self._current_time_s, self._player.position))
-        # print(self._player_visits)
 
-    def _get_nearby_visits(self, elapsed_time_s: float) -> Tuple[float, List[Tuple[float, float]]]:
+    def _get_nearby_visits(self, elapsed_time_s: float) -> float:
         current_position = self._player.position
         relevant_visits = list(
             sorted(
@@ -774,8 +779,8 @@ class World:
             ))
             for time_diff, pos_diff in relevant_visits
         ) * elapsed_time_s / self._n_nearby_visit_points
-        print(reward_impact)
-        return reward_impact, relevant_visits
+        # print(reward_impact)
+        return reward_impact
 
     def update_world_and_player_and_get_reward(
             self,
@@ -788,18 +793,18 @@ class World:
         self._update_state(elapsed_time_s)
         self._current_time_s += elapsed_time_s
         self._update_player_positions()
-        reward_impact, _ = self._get_nearby_visits(elapsed_time_s)
-        self._player.add_custom_reward(-reward_impact)
+        self._player.add_custom_reward(-self._exploration_pressure)
 
         reward = self._player.reward
         self._player.reset_reward_after_step()
         return reward
 
-    def visible_visits(self) -> Set[int]:
+    def get_visible_visits(self) -> Set[int]:
         current_position = self._player.position
-        return {i for i, (_, visit_pos) in enumerate(self._player_visits)
-                if not self._wall_collision_checker.segment_collides_with_walls(LineSegment(current_position, visit_pos))}
-        pass
+        return {
+            i for i, (_, visit_pos) in enumerate(self._player_visits)
+            if not self._wall_collision_checker.segment_collides_with_walls(LineSegment(current_position, visit_pos))
+        }
 
     def reset(self) -> None:
         self._game_over = False
@@ -850,3 +855,7 @@ class World:
     @property
     def player_visits(self):
         return self._player_visits
+
+    @property
+    def exploration_pressure(self):
+        return self._exploration_pressure
