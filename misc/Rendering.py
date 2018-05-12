@@ -241,7 +241,7 @@ class RenderWorld:
                 tag="visit_fig{i}".format(i=len(player_visits) - 1)
             )
 
-        visible_visits = self._world.visible_visits()
+        visible_visits = self._world.get_visible_visits()
         for i in range(len(player_visits)):
             if i not in visible_visits:
                 self._canvas.itemconfig(self._visit_figs[i], fill="grey")
