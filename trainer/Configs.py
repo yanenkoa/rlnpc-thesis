@@ -37,7 +37,7 @@ def config_empty():
 def config_one():
     width = 1000
     height = 1000
-    player = Player(Vector2(950, 50), np.pi / 2, 300)
+    player = Player(Vector2(50, 50), np.pi / 2, 300)
     walls = [
          RectangleWall(RectangleAABB(Vector2(800, 0.0), Vector2(900, 400))),
          RectangleWall(RectangleAABB(Vector2(500, 400), Vector2(900, 500))),
@@ -70,7 +70,7 @@ def config_one():
 
     proximity_sensors_np = ProximitySensors(
         player,
-        np.linspace(-np.pi / 2, np.pi / 2, 128, False),
+        np.linspace(-np.pi, np.pi, 128, False),
         500,
         walls,
         gold_chests,

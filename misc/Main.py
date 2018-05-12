@@ -36,38 +36,38 @@ def cloud_ml_training(world_config):
 def main():
     world = World(*config_one())
 
-    turn_rate_ps = pi / 0.8
-    input_device = InputDevice()
-    controller = KeyboardController(turn_rate_ps, input_device, world)
-    controller.loop()
+    # turn_rate_ps = pi / 0.8
+    # input_device = InputDevice()
+    # controller = KeyboardController(turn_rate_ps, input_device, world)
+    # controller.loop()
 
     # cloud_ml_training(config_one())
 
-    # config = LearningProcessConfig(
-    #     replay_size=4 * 64,
-    #     update_frequency=2 * 64,
-    #     reward_discount_coef=0.9,
-    #     start_random_action_prob=1.,
-    #     end_random_action_prob=0.1,
-    #     annealing_steps=int(1e6),
-    #     n_training_episodes=10000,
-    #     pre_train_steps=5000,
-    #     max_ep_length=(2 * 60 * 30),
-    #     buffer_size=2000,
-    #     n_skipped_frames=4,
-    # )
-    # learner = ActorCriticRecurrentLearner(
-    #     world,
-    #     tf.Session(),
-    #     1. / 60,
-    #     5,
-    #     config
-    # )
-    # learner.initialize()
-    #
-    # render = RenderWorld(world)
-    # render.start_drawing()
-    # learner.loop(render.update)
+    config = LearningProcessConfig(
+        replay_size=4 * 64,
+        update_frequency=2 * 64,
+        reward_discount_coef=0.9,
+        start_random_action_prob=1.,
+        end_random_action_prob=0.1,
+        annealing_steps=int(1e6),
+        n_training_episodes=10000,
+        pre_train_steps=5000,
+        max_ep_length=(2 * 60 * 30),
+        buffer_size=2000,
+        n_skipped_frames=4,
+    )
+    learner = ActorCriticRecurrentLearner(
+        world,
+        tf.Session(),
+        1. / 30,
+        5,
+        config
+    )
+    learner.initialize()
+
+    render = RenderWorld(world)
+    render.start_drawing()
+    learner.loop(render.update)
 
 
 if __name__ == '__main__':
