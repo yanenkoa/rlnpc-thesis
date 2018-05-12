@@ -1,10 +1,11 @@
 from collections import namedtuple, deque
-from typing import Tuple, Callable, Optional, List
+from time import sleep, time
+from typing import Tuple, Callable, Optional, List, Type
 
 import keras
 import numpy as np
 import tensorflow as tf
-from keras.layers import Dense, Concatenate
+from keras.layers import Dense, Concatenate, Conv2D, Flatten, LSTM, Reshape, Layer
 from tensorflow import losses
 from tensorflow.python.training.saver import Saver
 
@@ -14,7 +15,7 @@ from trainer.GameObjects import World, PlayerMovementDirection, Player, SensedOb
 Experiences = namedtuple("Experiences", [
     "states",
     "next_states",
-    "action_indices",
+    "actions",
     "rewards",
     "terminates"
 ])
@@ -44,7 +45,7 @@ class EpisodeBuffer:
     :type _terminate_buffer: np.ndarray
     """
 
-    def __init__(self, state_shapes: List[Tuple], buffer_size: int):
+    def __init__(self, state_shapes: List[Tuple], buffer_size: int, action_dtype: Type[np.int32]):
         self._buffer_size = buffer_size
 
         self._array_size = self._buffer_size * 2
@@ -68,7 +69,7 @@ class EpisodeBuffer:
             )
         self._action_index_buffer = np.empty(
             shape=(self._array_size,),
-            dtype=np.int32
+            dtype=action_dtype
         )
         self._reward_buffer = np.empty(
             shape=(self._array_size,),
@@ -256,8 +257,8 @@ class DeepQLearnerWithExperienceReplay:
     _output_angles = ...  # type: np.ndarray
     _session = ...  # type: tf.Session
     _time_between_actions_s = ...  # type: float
-    _n_steps_back = ...  # type: int
     _process_config = ...  # type: LearningProcessConfig
+    _n_steps_back = ...  # type: int
 
     _player = ...  # type: Player
     _n_sensor_types = ...  # type: int
@@ -267,7 +268,7 @@ class DeepQLearnerWithExperienceReplay:
     _n_sensor_inputs = ...  # type: int
     _max_sensor_distance = ...  # type: float
     _sensor_state_shape = ...  # type: Tuple
-    _heat_state_shape = ...  # type: Tu1ple
+    _heat_state_shape = ...  # type: Tuple
     _state_shapes = ...  # type: List[Tuple]
 
     _sensor_input_tensor = ...  # type: tf.Tensor
@@ -484,7 +485,7 @@ class DeepQLearnerWithExperienceReplay:
         random_action_prob = self._process_config.start_random_action_prob
         total_steps = 0
         pre_trained = False
-        ep_buf = EpisodeBuffer(self._state_shapes, self._process_config.buffer_size)
+        ep_buf = EpisodeBuffer(self._state_shapes, self._process_config.buffer_size, np.int32)
         # ep_buf_simple = EpisodeBufferSimple(self._process_config.buffer_size)
         reward_sums = []
 
@@ -586,7 +587,7 @@ class DeepQLearnerWithExperienceReplay:
                             next_heat,
                             # next_position
                         ) = train_experiences.next_states
-                        action_indices = train_experiences.action_indices
+                        action_indices = train_experiences.actions
                         rewards = train_experiences.rewards
                         terminates = train_experiences.terminates
 
