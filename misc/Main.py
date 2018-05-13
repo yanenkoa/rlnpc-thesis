@@ -41,33 +41,36 @@ def main():
     # controller = KeyboardController(turn_rate_ps, input_device, world)
     # controller.loop()
 
-    # cloud_ml_training(config_one())
-
     config = LearningProcessConfig(
-        replay_size=4 * 64,
-        update_frequency=2 * 64,
+        replay_size=None,
+        update_frequency=64,
         reward_discount_coef=0.9,
-        start_random_action_prob=1.,
-        end_random_action_prob=0.1,
-        annealing_steps=int(1e6),
-        n_training_episodes=10000,
-        pre_train_steps=5000,
-        max_ep_length=(2 * 60 * 30),
-        buffer_size=2000,
-        n_skipped_frames=4,
+        start_random_action_prob=None,
+        end_random_action_prob=None,
+        annealing_steps=None,
+        n_training_episodes=5000,
+        pre_train_steps=None,
+        max_ep_length=(2 * 60 * 30 // 5),
+        buffer_size=None,
+        n_skipped_frames=5,
     )
     learner = ActorCriticRecurrentLearner(
         world,
         tf.Session(),
+        32,
         1. / 30,
         5,
         config
     )
     learner.initialize()
 
-    render = RenderWorld(world)
-    render.start_drawing()
-    learner.loop(render.update)
+    # learner.load_model("gs://eneka-models/ac_data", 200)
+
+    # learner.print_weights()
+
+    render_world = RenderWorld(world)
+    render_world.start_drawing()
+    learner.loop(render_world.update)
 
 
 if __name__ == '__main__':

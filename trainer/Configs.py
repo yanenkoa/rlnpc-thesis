@@ -37,7 +37,7 @@ def config_empty():
 def config_one():
     width = 1000
     height = 1000
-    player = Player(Vector2(50, 50), np.pi / 2, 300)
+    player = Player(Vector2(950, 500), np.pi / 2, 300)
     walls = [
          RectangleWall(RectangleAABB(Vector2(800, 0.0), Vector2(900, 400))),
          RectangleWall(RectangleAABB(Vector2(500, 400), Vector2(900, 500))),
@@ -57,20 +57,20 @@ def config_one():
     bottom_wall = RectangleWall(RectangleAABB(Vector2(0, -100), Vector2(width, 0)))
     walls.extend([left_wall, top_wall, right_wall, bottom_wall])
     gold_chests = [
-         GoldChest(500, Vector2(50, 50)),
-         GoldChest(300, Vector2(250, 50)),
-         GoldChest(100, Vector2(750, 50)),
-         GoldChest(50, Vector2(350, 450)),
-         GoldChest(200, Vector2(50, 850)),
+         GoldChest(5, Vector2(50, 50)),
+         GoldChest(3, Vector2(250, 50)),
+         GoldChest(1, Vector2(750, 50)),
+         GoldChest(0.5, Vector2(350, 450)),
+         GoldChest(2, Vector2(50, 850)),
     ]
     heat_sources = [
-        HeatSource(1000, Vector2(450, 450), walls),
+        HeatSource(10, Vector2(450, 450), walls),
     ]
     portal = Portal(Vector2(800, 750))
 
     proximity_sensors_np = ProximitySensors(
         player,
-        np.linspace(-np.pi, np.pi, 128, False),
+        np.linspace(-np.pi, np.pi, 60, False),
         500,
         walls,
         gold_chests,
