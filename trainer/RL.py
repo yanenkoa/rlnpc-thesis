@@ -1,16 +1,15 @@
-from collections import namedtuple, deque
-from time import sleep, time
+from collections import namedtuple
+from time import time
 from typing import Tuple, Callable, Optional, List, Type
 
 import keras
 import numpy as np
 import tensorflow as tf
-from keras.layers import Dense, Concatenate, Conv2D, Flatten, LSTM, Reshape, Layer
+from keras.layers import Dense, Concatenate, Conv2D, LSTM, Layer
 from tensorflow import losses
 from tensorflow.python.training.saver import Saver
 
 from trainer.GameObjects import World, PlayerMovementDirection, Player, SensedObject
-
 
 Experiences = namedtuple("Experiences", [
     "states",
@@ -251,6 +250,7 @@ LearningProcessConfig = namedtuple("LearningProcessConfig", [
 class ActorCriticRecurrentLearner:
     _game_world = ...  # type: World
     _session = ...  # type: tf.Session
+    _n_output_angles = ...  # type: int
     _time_between_actions_s = ...  # type: float
     _process_config = ...  # type: LearningProcessConfig
 
@@ -262,24 +262,42 @@ class ActorCriticRecurrentLearner:
     _max_sensor_distance = ...  # type: float
     _sensor_state_shape = ...  # type: Tuple
     _heat_state_shape = ...  # type: Tuple
+    _exploration_pressure_shape = ...  # type: Tuple
+    _previous_reward_shape = ...  # type: Tuple
+    _previous_action_shape = ...  # type: Tuple
     _state_shapes = ...  # type: List[Tuple]
     _state_names = ...  # type: List[str]
 
     _decision_input_tensors = ...  # type: List[tf.Tensor]
     _decision_layers = ...  # type: List[Layer]
     _decision_output = ...  # type: tf.Tensor
+    _decision_value = ...  # type: tf.Tensor
     _train_input_tensors = ...  # type: List[tf.Tensor]
     _train_layers = ...  # type: List[Layer]
     _train_output = ...  # type: tf.Tensor
+    _train_value_output = ...  # type: tf.Tensor
+
+    _previous_heat = ...  # type: float
+    _previous_exploration_pressure = ...  # type: float
+    _previous_reward = ...  # type: float
+    _previous_action = ...  # type: int
+
+    _update_chosen_actions = ...  # type: tf.Tensor
+    _update_true_cumul_rewards = ...  # type: tf.Tensor
+    _update_values_tensor = ...  # type: tf.Tensor
+    _update_op = ...  # type: tf.Operation
+    _saver = ...  # type: Saver
 
     def __init__(self,
                  world: World,
                  session: tf.Session,
+                 n_output_angles: int,
                  time_between_actions_s: float,
                  window_size: int,
                  process_config: LearningProcessConfig):
         self._game_world = world
         self._session = session
+        self._n_output_angles = n_output_angles
         self._time_between_actions_s = time_between_actions_s
         self._window_size = window_size
         self._process_config = process_config
@@ -295,18 +313,29 @@ class ActorCriticRecurrentLearner:
         self._sensor_state_shape = (1, self._n_sensor_inputs, self._n_sensor_types)
         self._heat_state_shape = (1,)
         self._exploration_pressure_shape = (1,)
+        self._previous_reward_shape = (1,)
+        self._previous_action_shape = (self._n_output_angles,)
 
         self._state_shapes = [
             self._sensor_state_shape,
             self._heat_state_shape,
             self._exploration_pressure_shape,
+            self._previous_reward_shape,
+            self._previous_action_shape,
         ]
 
         self._state_names = [
             "sensor",
             "heat",
             "exploration_pressure",
+            "previous_reward",
+            "previous_action",
         ]
+
+        self._previous_heat = 0.
+        self._previous_exploration_pressure = 0.
+        self._previous_reward = 0.
+        self._previous_action = 0
 
     def _get_sensor_input(self) -> np.ndarray:
         distances = self._game_world.proximity_sensors_np.distances
@@ -322,16 +351,31 @@ class ActorCriticRecurrentLearner:
         return np.reshape(prox_sens_data[0, result_indices, :], (1, *self._sensor_state_shape))
 
     def _get_heat_input(self) -> np.ndarray:
-        return np.array([[self._game_world.player.heat]], dtype=np.float32)
+        res = float(self._previous_heat)
+        self._previous_heat = None
+        return np.array([[res]], dtype=np.float32)
 
     def _get_exploration_pressure_input(self) -> np.ndarray:
-        return np.array([[self._game_world.exploration_pressure]], dtype=np.float32)
+        res = float(self._previous_exploration_pressure)
+        self._previous_exploration_pressure = None
+        return np.array([[res]], dtype=np.float32)
+
+    def _get_previous_reward(self) -> np.ndarray:
+        res = float(self._previous_reward)
+        self._previous_reward = None
+        return np.array([[res]], dtype=np.float32)
+
+    def _get_previous_action(self) -> np.ndarray:
+        result = np.zeros(shape=(1, self._n_output_angles), dtype=np.float32)
+        result[0, self._previous_action] = 1
+        self._previous_action = None
+        return result
 
     def _initialize_network(
             self,
             conved_input_index: int,
             decision_mode: bool
-    ) -> Tuple[List[tf.Tensor], List[Layer], tf.Tensor]:
+    ) -> Tuple[List[tf.Tensor], List[Layer], tf.Tensor, tf.Tensor]:
 
         batch_size = 1 if decision_mode else None
         mode_str = "decision" if decision_mode else "training"
@@ -386,9 +430,11 @@ class ActorCriticRecurrentLearner:
         if decision_mode:
             pre_lstm_reshaped = tf.reshape(concatted, (1, 1, n_units), name="{}_pre_lstm_reshaped".format(mode_str))
             stateful = True
+            return_sequences_after = False
         else:
             pre_lstm_reshaped = tf.reshape(concatted, (1, -1, n_units), name="{}_pre_lstm_reshaped".format(mode_str))
             stateful = False
+            return_sequences_after = True
 
         lstm_layer_1 = LSTM(
             units=n_units // 2,
@@ -402,8 +448,14 @@ class ActorCriticRecurrentLearner:
             units=n_units // 2,
             stateful=stateful,
             name="{}_lstm_layer_2".format(mode_str),
+            return_sequences=return_sequences_after,
         )
         lstm_output_2 = lstm_layer_2(lstm_output_1)
+
+        # print(lstm_output_2)
+        if not decision_mode:
+            lstm_output_2 = tf.reshape(lstm_output_2, (-1, lstm_output_2.shape[2]))
+        # print(lstm_output_2)
 
         # dense_layer_1 = Dense(units=n_units // 2, activation="relu", name="{}_hidden_dense_1".format(mode_str))
         # dense_output_1 = dense_layer_1(lstm_output_2)
@@ -412,89 +464,265 @@ class ActorCriticRecurrentLearner:
         # dense_output_2 = dense_layer_2(dense_output_1)
 
         output_layer = Dense(
-            units=2,
-            activation="sigmoid",
-            name="{}_output_sin_cos".format(mode_str)
+            units=self._n_output_angles,
+            activation="softmax",
+            name="{}_output_layer".format(mode_str)
         )
-        # output_sin_cos = output_layer(dense_output_2)
-        output_sin_cos = output_layer(lstm_output_2)
-        if decision_mode:
-            self._decision_output_sin_cos = output_sin_cos
+        output_angle_probabilities = output_layer(lstm_output_2)
 
-        output_angle = tf.atan2(output_sin_cos[:, 0], output_sin_cos[:, 1], name="{}_output_angle".format(mode_str))
+        value_output_layer = Dense(
+            units=1,
+            name="{}_value_layer".format(mode_str)
+        )
+        output_value = value_output_layer(lstm_output_2)
+        # output_sin_cos = output_layer(dense_output_2)
+
+        # output_sin_cos = output_layer(lstm_output_2)
+        # if decision_mode:
+        #     self._decision_output_sin_cos = output_sin_cos
+        #
+        # output_angle = tf.atan2(output_sin_cos[:, 0], output_sin_cos[:, 1], name="{}_output_angle".format(mode_str))
 
         layers = [
             conv_layer_1,
             conv_layer_2,
             lstm_layer_1,
             lstm_layer_2,
+            output_layer,
+            value_output_layer,
             # dense_layer_1,
             # dense_layer_2,
         ]
 
-        return input_tensors, layers, output_angle
+        return input_tensors, layers, output_angle_probabilities, output_value
 
     def _get_input_list(self) -> List[np.ndarray]:
         return [
             self._get_sensor_input(),
             self._get_heat_input(),
             self._get_exploration_pressure_input(),
+            self._get_previous_reward(),
+            self._get_previous_action(),
         ]
 
     def _copy_weights_from_train_to_decision(self) -> None:
         for decision_layer, train_layer in zip(self._decision_layers, self._train_layers):
             decision_layer.set_weights(train_layer.get_weights())
 
+    def _get_angle(self, action_index: int) -> float:
+        return np.linspace(-np.pi, np.pi, self._n_output_angles, False)[action_index]
+
+    def _remember_experience(self):
+        pass
+
     def initialize(self) -> None:
+        tf.logging.info("Initializing A2C")
+
         keras.backend.set_session(self._session)
 
-        self._decision_input_tensors, self._decision_layers, self._decision_output = self._initialize_network(0, True)
-        self._train_input_tensors, self._train_layers, self._train_output = self._initialize_network(0, False)
+        (
+            self._decision_input_tensors,
+            self._decision_layers,
+            self._decision_output,
+            self._decision_value,
+        ) = self._initialize_network(0, True)
+        (
+            self._train_input_tensors,
+            self._train_layers,
+            self._train_output,
+            self._train_value_output
+        ) = self._initialize_network(0, False)
+
+        self._update_chosen_actions = tf.placeholder(
+            dtype=tf.int32, shape=(None,), name="update_chosen_actions"
+        )
+        self._update_true_cumul_rewards = tf.placeholder(
+            dtype=tf.float32, shape=(None,), name="update_true_cumul_rewards"
+        )
+        self._update_values_tensor = tf.placeholder(dtype=tf.float32, shape=(None,), name="update_values")
+
+        tf_range = tf.range(0, tf.shape(self._update_chosen_actions)[0], dtype=tf.int32)
+        state_indices = tf.stack((tf_range, self._update_chosen_actions), axis=1)
+        chosen_probs = tf.gather_nd(self._train_output, state_indices)
+
+        advantages = self._update_true_cumul_rewards - self._update_values_tensor
+
+        n = tf.cast(tf.shape(self._train_output)[0], dtype=tf.float32)
+        # print(tf.log(chosen_probs))
+        # print(advantages)
+        policy_loss = -1 / n * tf.reduce_sum(advantages * tf.log(chosen_probs))
+
+        value_loss = 1 / n * tf.reduce_sum(tf.square(self._update_true_cumul_rewards - self._train_value_output))
+
+        entropies = -tf.reduce_sum(self._train_output * tf.log(self._train_output), axis=1)
+        regularization_loss = -1 / n * tf.reduce_sum(entropies)
+
+        all_loss = policy_loss + value_loss + 5 * 1e-4 * regularization_loss
+
+        optimizer = tf.train.RMSPropOptimizer(learning_rate=3 * 1e-4)
+
+        self._update_op = optimizer.minimize(all_loss)
+
+        # print(optimizer.variables())
 
         self._session.run(tf.global_variables_initializer())
 
+        self._saver = tf.train.Saver()
+
+    def load_model(self, path: str, step: int):
+        tf.logging.info("Loading model...")
+        checkpoint = tf.train.get_checkpoint_state(path)
+        checkpoint_end = "model-{}.ckpt".format(step)
+
+        for checkpoint_path in checkpoint.all_model_checkpoint_paths:
+            if checkpoint_path.endswith(checkpoint_end):
+                our_checkpoint_path = checkpoint_path
+                break
+        else:
+            raise ValueError("wtf")
+
+        self._saver.restore(self._session, our_checkpoint_path)
+
+    def print_weights(self):
+        for layer in self._decision_layers:
+            print(layer.get_weights())
+
     def loop(self, step_hook: Optional[Callable[[], None]] = None):
-        ep_buf = EpisodeBuffer(self._state_shapes, 5000, np.float32)
+        print("Start the loop!")
 
         i = 0
         while True:
-            before_ts = time()
-
             inputs = self._get_input_list()
 
-            sin_cos, new_angle = self._session.run(
-                [self._decision_output_sin_cos, self._decision_output],
+            decision_output = self._session.run(
+                self._decision_output,
                 feed_dict=dict(list(zip(self._decision_input_tensors, inputs)))
             )
-            print(sin_cos)
-            print(new_angle)
+            assert not np.any(np.isnan(decision_output))
+            new_angle_index = np.random.choice(np.arange(self._n_output_angles), p=decision_output[0])
+            new_angle = self._get_angle(new_angle_index)
 
-            reward = self._game_world.update_world_and_player_and_get_reward(
-                self._time_between_actions_s, new_angle[0], PlayerMovementDirection.FORWARD
-            )
+            print(decision_output)
+            print(new_angle_index)
 
-            next_inputs = self._get_input_list()
+            self._previous_reward = 0.
+            for _ in range(self._process_config.n_skipped_frames):
+                self._previous_reward += self._game_world.update_world_and_player_and_get_reward(
+                    self._time_between_actions_s, new_angle, PlayerMovementDirection.FORWARD
+                )
+                if step_hook is not None:
+                    step_hook()
 
-            ep_buf.add_experiences(Experiences(
-                inputs,
-                next_inputs,
-                new_angle,
-                np.array([reward], dtype=np.float32),
-                np.array([self._game_world.game_over], dtype=np.bool),
-            ))
-
-            if step_hook is not None:
-                step_hook()
-
-            after_ts = time()
-
-            print(after_ts - before_ts)
-
-            if i != 0 and i % 10 == 0:
-                print("copying")
-                self._copy_weights_from_train_to_decision()
+            self._previous_action = new_angle_index
 
             i += 1
+
+    def train(self, save_path: Optional[str] = None, step_hook: Optional[Callable[[], None]] = None) -> None:
+        tf.logging.info("Starting training A2C agent")
+
+        total_steps = 0
+        t_max = self._process_config.update_frequency
+        gamma = self._process_config.reward_discount_coef
+
+        reward_sums = []
+
+        for i_episode in range(self._process_config.n_training_episodes):
+            self._game_world.reset()
+
+            exps = []
+            i_step = 0
+
+            while True:
+                total_steps += 1
+                i_step += 1
+
+                inputs = self._get_input_list()
+
+                value, decision_output = self._session.run(
+                    [self._decision_value, self._decision_output],
+                    feed_dict=dict(list(zip(self._decision_input_tensors, inputs)))
+                )
+                assert not np.any(np.isnan(decision_output))
+                new_angle_index = np.random.choice(np.arange(self._n_output_angles), p=decision_output[0])
+                new_angle = self._get_angle(new_angle_index)
+
+                self._previous_action = new_angle_index
+
+                self._previous_reward = 0.
+                self._previous_heat = 0.
+                self._previous_exploration_pressure = 0.
+                for _ in range(self._process_config.n_skipped_frames):
+                    self._previous_reward += self._game_world.update_world_and_player_and_get_reward(
+                        self._time_between_actions_s, new_angle, PlayerMovementDirection.FORWARD
+                    )
+                    self._previous_heat += self._game_world.player.heat
+                    self._previous_exploration_pressure += self._game_world.exploration_pressure
+                    if step_hook is not None:
+                        step_hook()
+
+                reward_sums.append(self._previous_reward)
+
+                exps.append(Exp(new_angle_index, value, self._previous_reward, inputs))
+
+                game_over = self._game_world.game_over
+
+                if game_over or len(exps) >= t_max:
+                    # print("training")
+
+                    cumul_rewards = np.empty(shape=(len(exps),), dtype=np.float32)
+                    chosen_actions = np.empty(shape=(len(exps),), dtype=np.int32)
+                    values = np.empty(shape=(len(exps),), dtype=np.float32)
+                    mem_inputs = [
+                        np.empty(shape=(len(exps), *state_shape), dtype=np.float32)
+                        for state_shape in self._state_shapes
+                    ]
+
+                    for i_exp in reversed(range(len(exps))):
+                        if i_exp == len(exps) - 1:
+                            cumul_rewards[i_exp] = 0 if game_over else value
+                        else:
+                            cumul_rewards[i_exp] = exps[i_exp].reward + gamma * cumul_rewards[i_exp + 1]
+
+                        chosen_actions[i_exp] = exps[i_exp].chosen_action
+                        values[i_exp] = exps[i_exp].value
+                        for i_state, input_state in enumerate(exps[i_exp].inputs):
+                            mem_inputs[i_state][i_exp] = input_state
+
+                    exps.clear()
+
+                    fd = dict(list(zip(self._train_input_tensors, mem_inputs)))
+                    fd[self._update_chosen_actions] = chosen_actions
+                    fd[self._update_values_tensor] = values
+                    fd[self._update_true_cumul_rewards] = cumul_rewards
+
+                    self._session.run(self._update_op, fd)
+
+                    self._copy_weights_from_train_to_decision()
+
+                if i_step >= self._process_config.max_ep_length or game_over:
+                    break
+
+            # print("finished episode")
+            reward_sums.append(self._game_world.player.reward_sum)
+
+            if i_episode % 10 == 0:
+                tf.logging.info(
+                    "Total steps: {total_steps}, Mean reward sum: {mean_reward_sum}".format(
+                        total_steps=total_steps,
+                        mean_reward_sum=np.mean(reward_sums[-10:]),
+                    )
+                )
+                reward_sums.clear()
+
+            if save_path is not None and i_episode % 100 == 0:
+                self._saver.save(self._session, "{save_path}/model-{i_episode}.ckpt".format(save_path=save_path,
+                                                                                            i_episode=i_episode))
+                tf.logging.info("Saved model at episode {i_episode}.".format(i_episode=i_episode))
+
+        self._saver.save(self._session, "{save_path}/model-final.ckpt".format(save_path=save_path))
+
+
+Exp = namedtuple("Exp", "chosen_action value reward inputs")
 
 
 class DeepQLearnerWithExperienceReplay:

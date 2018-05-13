@@ -5,7 +5,7 @@ import tensorflow as tf
 
 from trainer.Configs import config_one
 from trainer.GameObjects import World
-from trainer.RL import DeepQLearnerWithExperienceReplay, LearningProcessConfig
+from trainer.RL import DeepQLearnerWithExperienceReplay, LearningProcessConfig, ActorCriticRecurrentLearner
 
 
 def cloud_ml_training(world_config, path: str):
@@ -34,6 +34,43 @@ def cloud_ml_training(world_config, path: str):
     learner.train(path)
 
 
+def ac_training(world_config, path: str):
+    tf.logging.set_verbosity(tf.logging.DEBUG)
+    tf.logging.info("Writing to {path}".format(path=path))
+
+    world = World(*world_config)
+
+    frames_in_second = 60
+    n_skipped_frames = 15
+    max_minutes = 2
+    framerate = 1. / frames_in_second
+
+    config = LearningProcessConfig(
+        replay_size=None,
+        update_frequency=16,
+        reward_discount_coef=0.9,
+        start_random_action_prob=None,
+        end_random_action_prob=None,
+        annealing_steps=None,
+        n_training_episodes=5000,
+        pre_train_steps=None,
+        max_ep_length=max_minutes * 60 * frames_in_second // n_skipped_frames,
+        buffer_size=None,
+        n_skipped_frames=n_skipped_frames,
+    )
+    learner = ActorCriticRecurrentLearner(
+        world,
+        tf.Session(),
+        32,
+        framerate,
+        7,
+        config
+    )
+    learner.initialize()
+
+    learner.train(path)
+
+
 def main():
     tf.logging.set_verbosity(tf.logging.DEBUG)
 
@@ -41,7 +78,8 @@ def main():
     argparser.add_argument("--job-dir", default="data")
 
     args = argparser.parse_args()
-    cloud_ml_training(config_one(), args.job_dir)
+
+    ac_training(config_one(), args.job_dir)
 
 
 if __name__ == '__main__':
