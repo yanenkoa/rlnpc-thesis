@@ -240,6 +240,17 @@ class RenderWorld:
                 width=1,
                 tag="visit_fig{i}".format(i=len(player_visits) - 1)
             )
+        elif len(player_visits) < len(self._visit_figs):
+            for fig in self._visit_figs.values():
+                self._canvas.delete(fig)
+            self._visit_figs.clear()
+            for i, (_, pos) in player_visits:
+                self._visit_figs[i] = self._canvas.create_oval(
+                    *make_unpacked_inverted_rectangle(pos, 5, 5, self._world.height),
+                    fill="black",
+                    width=1,
+                    tag="visit_fig{i}".format(i=len(player_visits) - 1)
+                )
 
         visible_visits = self._world.get_visible_visits()
         for i in range(len(player_visits)):
