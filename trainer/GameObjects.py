@@ -63,14 +63,14 @@ class Player:
     height = 15.0  # type: float
 
     _reward_lost_heat_coef_ps = 1.  # type: float
-    _portal_reward = 500.  # type: float
+    _portal_reward = 50.  # type: float
 
     _init_angle = ...  # type: float
     _init_position = ...  # type: Vector2
     _angle = ...  # type: float
     _position = ...  # type: Vector2
     _move_speed_ps = ...  # type: float
-    _gold = ...  # type: int
+    _gold = ...  # type: float
     _heat = ...  # type: float
     _reward = ...  # type: float
     _reward_sum = ...  # type: float
@@ -80,7 +80,7 @@ class Player:
         self._init_position = init_pos
         self._position = Vector2(init_pos.x, init_pos.y)
         self._move_speed_ps = move_speed_ps
-        self._gold = 0
+        self._gold = 0.
         self._heat = 0.
         self._reward = 0.
         self._reward_sum = 0.
@@ -96,7 +96,7 @@ class Player:
     def update_angle(self, new_angle: float) -> None:
         self._angle = new_angle
 
-    def add_gold(self, gold) -> None:
+    def add_gold(self, gold: float) -> None:
         self._reward += gold
         self._gold += gold
 
@@ -136,7 +136,7 @@ class Player:
         return self._position.clone()
 
     @property
-    def gold(self) -> int:
+    def gold(self) -> float:
         return self._gold
 
     @property
@@ -216,16 +216,16 @@ class GoldChest:
 
     _collected = False  # type: bool
 
-    _gold = ...  # type: int
+    _gold = ...  # type: float
     _location = ...  # type: Vector2
     _rectangle = ...  # type: RectangleAABB
 
-    def __init__(self, gold: int, location: Vector2):
+    def __init__(self, gold: float, location: Vector2):
         self._gold = gold
         self._location = location
         self._rectangle = make_rectangle(location, self.width, self.height)
 
-    def collect(self) -> int:
+    def collect(self) -> float:
         self._collected = True
         return self._gold
 
@@ -632,8 +632,8 @@ class WallsCollisionChecker:
 
 
 class World:
-    _width = ...  # type: int
-    _height = ...  # type: int
+    _width = ...  # type: float
+    _height = ...  # type: float
     _player = ...  # type: Player
     _walls = ...  # type: List[Wall]
     _gold_chests = ...  # type: List[GoldChest]
@@ -683,10 +683,10 @@ class World:
 
         self._proximity_sensors_np = proximity_sensors_np
 
-        self._remember_position_interval_s = 0.1
+        self._remember_position_interval_s = 0.3
         self._visit_reward_impact_decay_per_s = 0.92
         self._n_nearby_visit_points = 100
-        self._visit_coef_ps = 100000.
+        self._visit_coef_ps = 1000.
 
         self._current_time_s = 0.
         self._last_saved_position_time_s = 0.
@@ -713,22 +713,29 @@ class World:
                 self._player.height
             )
         )
-        for p in new_player_points:
-            if not self._validator.is_valid(Vector2(p.x, player_pos.y)):
+        old_player_points = get_rectangle_points(
+            make_rectangle(
+                player_pos,
+                self._player.width,
+                self._player.height
+            )
+        )
+        for np, op in zip(new_player_points, old_player_points):
+            if not self._validator.is_valid(Vector2(np.x, op.y)):
                 translation.x = 0
-            if not self._validator.is_valid(Vector2(player_pos.x, p.y)):
+            if not self._validator.is_valid(Vector2(op.x, np.y)):
                 translation.y = 0
         self._player.apply_translation(translation)
 
     def _update_state(self, elapsed_time_s: float) -> None:
+        if self._game_over:
+            return
+
         portal_rect = self._portal.rectangle
         player_rect = self._player.get_rectangle()
         if rectangles_intersect(player_rect, portal_rect).intersects:
             self._game_over = True
             self._player.add_portal_reward()
-
-        if self._game_over:
-            return
 
         for gold_chest in self._gold_chests:
             if not gold_chest.collected and rectangles_intersect(gold_chest.rectangle, player_rect).intersects:
@@ -821,11 +828,11 @@ class World:
         return self._player
 
     @property
-    def width(self) -> int:
+    def width(self) -> float:
         return self._width
 
     @property
-    def height(self) -> int:
+    def height(self) -> float:
         return self._height
 
     @property
