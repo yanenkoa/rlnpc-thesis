@@ -41,36 +41,42 @@ def main():
     # controller = KeyboardController(turn_rate_ps, input_device, world)
     # controller.loop()
 
+    frames_in_second = 60
+    n_skipped_frames = 15
+    max_minutes = 2
+    framerate = 1. / frames_in_second
+
     config = LearningProcessConfig(
         replay_size=None,
-        update_frequency=64,
+        update_frequency=16,
         reward_discount_coef=0.9,
         start_random_action_prob=None,
         end_random_action_prob=None,
         annealing_steps=None,
         n_training_episodes=5000,
         pre_train_steps=None,
-        max_ep_length=(2 * 60 * 30 // 5),
+        max_ep_length=max_minutes * 60 * frames_in_second // n_skipped_frames,
         buffer_size=None,
-        n_skipped_frames=5,
+        n_skipped_frames=n_skipped_frames,
     )
     learner = ActorCriticRecurrentLearner(
         world,
         tf.Session(),
         32,
-        1. / 30,
-        5,
+        framerate,
+        7,
         config
     )
     learner.initialize()
 
-    # learner.load_model("gs://eneka-models/ac_data", 200)
+    learner.load_model("gs://eneka-models/data1", 300)
 
     # learner.print_weights()
 
     render_world = RenderWorld(world)
     render_world.start_drawing()
     learner.loop(render_world.update)
+    # learner.train(None, render_world.update)
 
 
 if __name__ == '__main__':
