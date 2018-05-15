@@ -397,7 +397,7 @@ class ActorCriticRecurrentLearner:
             trainable = not decision_mode
 
             conv_layer_1 = Conv2D(
-                filters=16,
+                filters=8,
                 kernel_size=(1, self._window_size),
                 data_format="channels_last",
                 activation="relu",
@@ -407,7 +407,7 @@ class ActorCriticRecurrentLearner:
             conv_output_1 = PReLU()(conv_layer_1(conved_input))
 
             conv_layer_2 = Conv2D(
-                filters=16,
+                filters=8,
                 kernel_size=(1, self._window_size),
                 data_format="channels_last",
                 activation="relu",
@@ -445,7 +445,7 @@ class ActorCriticRecurrentLearner:
                 return_sequences_after = True
 
             lstm_layer_1 = LSTM(
-                units=n_units // 2,
+                units=n_units // 4,
                 stateful=stateful,
                 name="lstm_layer_1",
                 return_sequences=True,
@@ -454,7 +454,7 @@ class ActorCriticRecurrentLearner:
             lstm_output_1 = lstm_layer_1(pre_lstm_reshaped)
 
             lstm_layer_2 = LSTM(
-                units=n_units // 2,
+                units=n_units // 4,
                 stateful=stateful,
                 name="lstm_layer_2",
                 return_sequences=return_sequences_after,
@@ -466,14 +466,14 @@ class ActorCriticRecurrentLearner:
                 lstm_output_2 = tf.reshape(lstm_output_2, (-1, lstm_output_2.shape[2]))
 
             dense_layer_1 = Dense(
-                units=n_units // 2,
+                units=n_units // 4,
                 activation="linear",
                 name="dense_layer_1"
             )
             dense_output_1 = PReLU()(dense_layer_1(lstm_output_2))
 
             dense_layer_2 = Dense(
-                units=n_units // 2,
+                units=n_units // 4,
                 activation="linear",
                 name="dense_layer_2"
             )
@@ -499,10 +499,10 @@ class ActorCriticRecurrentLearner:
                 conv_layer_2,
                 lstm_layer_1,
                 lstm_layer_2,
+                dense_layer_1,
+                dense_layer_2,
                 output_layer,
                 value_output_layer,
-                # dense_layer_1,
-                # dense_layer_2,
             ]
 
             return input_tensors, layers, output_angle_probabilities, output_value
