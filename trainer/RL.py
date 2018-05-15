@@ -444,7 +444,7 @@ class ActorCriticRecurrentLearner:
                 return_sequences_after = True
 
             lstm_layer_1 = LSTM(
-                units=n_units // 2,
+                units=n_units,
                 stateful=stateful,
                 name="lstm_layer_1",
                 return_sequences=True,
@@ -453,7 +453,7 @@ class ActorCriticRecurrentLearner:
             lstm_output_1 = lstm_layer_1(pre_lstm_reshaped)
 
             lstm_layer_2 = LSTM(
-                units=n_units // 2,
+                units=n_units,
                 stateful=stateful,
                 name="lstm_layer_2",
                 return_sequences=return_sequences_after,
@@ -461,16 +461,8 @@ class ActorCriticRecurrentLearner:
             )
             lstm_output_2 = lstm_layer_2(lstm_output_1)
 
-            # print(lstm_output_2)
             if not decision_mode:
                 lstm_output_2 = tf.reshape(lstm_output_2, (-1, lstm_output_2.shape[2]))
-            # print(lstm_output_2)
-
-            # dense_layer_1 = Dense(units=n_units // 2, activation="relu", name="{}_hidden_dense_1".format(mode_str))
-            # dense_output_1 = dense_layer_1(lstm_output_2)
-            #
-            # dense_layer_2 = Dense(units=n_units // 2, activation="relu", name="{}_hidden_dense_2".format(mode_str))
-            # dense_output_2 = dense_layer_2(dense_output_1)
 
             output_layer = Dense(
                 units=self._n_output_angles,
@@ -486,13 +478,6 @@ class ActorCriticRecurrentLearner:
                 trainable=trainable,
             )
             output_value = value_output_layer(lstm_output_2)
-            # output_sin_cos = output_layer(dense_output_2)
-
-            # output_sin_cos = output_layer(lstm_output_2)
-            # if decision_mode:
-            #     self._decision_output_sin_cos = output_sin_cos
-            #
-            # output_angle = tf.atan2(output_sin_cos[:, 0], output_sin_cos[:, 1], name="output_angle")
 
             layers = [
                 conv_layer_1,
@@ -559,8 +544,6 @@ class ActorCriticRecurrentLearner:
         advantages = self._update_true_cumul_rewards - self._update_values_tensor
 
         n = tf.cast(tf.shape(self._train_output)[0], dtype=tf.float32)
-        # print(tf.log(chosen_probs))
-        # print(advantages)
         policy_loss = -1 / n * tf.reduce_sum(advantages * tf.log(chosen_probs))
 
         value_loss = 1 / n * tf.reduce_sum(tf.square(self._update_true_cumul_rewards - self._train_value_output))
@@ -574,8 +557,6 @@ class ActorCriticRecurrentLearner:
 
         self._vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "train")
         self._gradients = tf.gradients(all_loss, self._vars)
-        # print("gradient tensors", self._gradients)
-        # print("vars", self._vars)
 
         self._update_op = optimizer.apply_gradients(zip(self._gradients, self._vars))
 
@@ -671,8 +652,6 @@ class ActorCriticRecurrentLearner:
                 game_over = self._game_world.game_over
 
                 if game_over or len(exps) >= t_max:
-                    # print("training")
-
                     cumul_rewards = np.empty(shape=(len(exps),), dtype=np.float32)
                     chosen_actions = np.empty(shape=(len(exps),), dtype=np.int32)
                     values = np.empty(shape=(len(exps),), dtype=np.float32)
@@ -719,7 +698,6 @@ class ActorCriticRecurrentLearner:
                     )
                 )
                 reward_sums.clear()
-                break
 
             if save_path is not None and i_episode % 100 == 0:
                 self._saver.save(self._session, "{save_path}/model-{i_episode}.ckpt".format(save_path=save_path,
