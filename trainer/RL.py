@@ -6,6 +6,7 @@ import keras
 import numpy as np
 import tensorflow as tf
 from keras.layers import Dense, Concatenate, Conv2D, LSTM, Layer
+from keras.layers.advanced_activations import PReLU
 from tensorflow import losses
 from tensorflow.python.training.saver import Saver
 
@@ -403,7 +404,7 @@ class ActorCriticRecurrentLearner:
                 name="conv1",
                 trainable=trainable
             )
-            conv_output_1 = conv_layer_1(conved_input)
+            conv_output_1 = PReLU()(conv_layer_1(conved_input))
 
             conv_layer_2 = Conv2D(
                 filters=16,
@@ -413,7 +414,7 @@ class ActorCriticRecurrentLearner:
                 name="conv2",
                 trainable=trainable
             )
-            conv_output_2 = conv_layer_2(conv_output_1)
+            conv_output_2 = PReLU()(conv_layer_2(conv_output_1))
 
             _, _, n_pixels, n_filters = conv_output_2.shape
             flattened_conv = tf.reshape(
@@ -444,7 +445,7 @@ class ActorCriticRecurrentLearner:
                 return_sequences_after = True
 
             lstm_layer_1 = LSTM(
-                units=n_units,
+                units=n_units // 2,
                 stateful=stateful,
                 name="lstm_layer_1",
                 return_sequences=True,
@@ -453,7 +454,7 @@ class ActorCriticRecurrentLearner:
             lstm_output_1 = lstm_layer_1(pre_lstm_reshaped)
 
             lstm_layer_2 = LSTM(
-                units=n_units,
+                units=n_units // 2,
                 stateful=stateful,
                 name="lstm_layer_2",
                 return_sequences=return_sequences_after,
@@ -464,20 +465,34 @@ class ActorCriticRecurrentLearner:
             if not decision_mode:
                 lstm_output_2 = tf.reshape(lstm_output_2, (-1, lstm_output_2.shape[2]))
 
+            dense_layer_1 = Dense(
+                units=n_units // 2,
+                activation="linear",
+                name="dense_layer_1"
+            )
+            dense_output_1 = PReLU()(dense_layer_1(lstm_output_2))
+
+            dense_layer_2 = Dense(
+                units=n_units // 2,
+                activation="linear",
+                name="dense_layer_2"
+            )
+            dense_output_2 = PReLU()(dense_layer_2(dense_output_1))
+
             output_layer = Dense(
                 units=self._n_output_angles,
                 activation="softmax",
                 name="output_layer",
                 trainable=trainable,
             )
-            output_angle_probabilities = output_layer(lstm_output_2)
+            output_angle_probabilities = output_layer(dense_output_2)
 
             value_output_layer = Dense(
                 units=1,
                 name="value_layer",
                 trainable=trainable,
             )
-            output_value = value_output_layer(lstm_output_2)
+            output_value = value_output_layer(dense_output_2)
 
             layers = [
                 conv_layer_1,
@@ -507,9 +522,6 @@ class ActorCriticRecurrentLearner:
 
     def _get_angle(self, action_index: int) -> float:
         return np.linspace(-np.pi, np.pi, self._n_output_angles, False)[action_index]
-
-    def _remember_experience(self):
-        pass
 
     def initialize(self) -> None:
         tf.logging.info("Initializing A2C")
