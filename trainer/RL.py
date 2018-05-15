@@ -342,7 +342,7 @@ class ActorCriticRecurrentLearner:
         distances = self._game_world.proximity_sensors_np.distances
         object_types = self._game_world.proximity_sensors_np.object_types
         prox_sens_data = np.zeros(shape=(1, self._n_sensors, self._n_sensor_types), dtype=np.float32)
-        prox_sens_data[0, :, 0] = distances
+        prox_sens_data[0, :, 0] = distances / self._max_sensor_distance
         prox_sens_data[0, np.arange(self._n_sensors), object_types] = 1
 
         result_indices = np.fmod(
