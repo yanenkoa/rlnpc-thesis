@@ -377,124 +377,135 @@ class ActorCriticRecurrentLearner:
             decision_mode: bool
     ) -> Tuple[List[tf.Tensor], List[Layer], tf.Tensor, tf.Tensor]:
 
-        batch_size = 1 if decision_mode else None
-        mode_str = "decision" if decision_mode else "training"
-        input_tensors = [
-            tf.placeholder(
-                dtype=tf.float32,
-                shape=(batch_size, *shape),
-                name="{}_{}_input".format(mode_str, name)
-            )
-            for shape, name in zip(self._state_shapes, self._state_names)
-        ]
+        scope_name = "decision" if decision_mode else "train"
 
-        conved_input = input_tensors[conved_input_index]
+        with tf.variable_scope(scope_name):
 
-        conv_layer_1 = Conv2D(
-            filters=16,
-            kernel_size=(1, self._window_size),
-            data_format="channels_last",
-            activation="relu",
-            name="{}_conv1".format(mode_str),
-        )
-        conv_output_1 = conv_layer_1(conved_input)
-
-        conv_layer_2 = Conv2D(
-            filters=16,
-            kernel_size=(1, self._window_size),
-            data_format="channels_last",
-            activation="relu",
-            name="{}_conv2".format(mode_str),
-        )
-        conv_output_2 = conv_layer_2(conv_output_1)
-
-        _, _, n_pixels, n_filters = conv_output_2.shape
-        flattened_conv = tf.reshape(
-            tensor=conv_output_2,
-            shape=(-1, n_pixels * n_filters),
-            name="{}_flattened_conv".format(mode_str)
-        )
-
-        concatted = Concatenate(name="{}_concat".format(mode_str))(
-            [flattened_conv]
-            + [
-                input_tensor
-                for i, input_tensor in enumerate(input_tensors)
-                if i != conved_input_index
+            batch_size = 1 if decision_mode else None
+            input_tensors = [
+                tf.placeholder(
+                    dtype=tf.float32,
+                    shape=(batch_size, *shape),
+                    name="{}_input".format(name)
+                )
+                for shape, name in zip(self._state_shapes, self._state_names)
             ]
-        )
 
-        _, n_units = concatted.shape
-        n_units = int(n_units)
+            conved_input = input_tensors[conved_input_index]
 
-        if decision_mode:
-            pre_lstm_reshaped = tf.reshape(concatted, (1, 1, n_units), name="{}_pre_lstm_reshaped".format(mode_str))
-            stateful = True
-            return_sequences_after = False
-        else:
-            pre_lstm_reshaped = tf.reshape(concatted, (1, -1, n_units), name="{}_pre_lstm_reshaped".format(mode_str))
-            stateful = False
-            return_sequences_after = True
+            trainable = not decision_mode
 
-        lstm_layer_1 = LSTM(
-            units=n_units // 2,
-            stateful=stateful,
-            name="{}_lstm_layer_1".format(mode_str),
-            return_sequences=True,
-        )
-        lstm_output_1 = lstm_layer_1(pre_lstm_reshaped)
+            conv_layer_1 = Conv2D(
+                filters=16,
+                kernel_size=(1, self._window_size),
+                data_format="channels_last",
+                activation="relu",
+                name="conv1",
+                trainable=trainable
+            )
+            conv_output_1 = conv_layer_1(conved_input)
 
-        lstm_layer_2 = LSTM(
-            units=n_units // 2,
-            stateful=stateful,
-            name="{}_lstm_layer_2".format(mode_str),
-            return_sequences=return_sequences_after,
-        )
-        lstm_output_2 = lstm_layer_2(lstm_output_1)
+            conv_layer_2 = Conv2D(
+                filters=16,
+                kernel_size=(1, self._window_size),
+                data_format="channels_last",
+                activation="relu",
+                name="conv2",
+                trainable=trainable
+            )
+            conv_output_2 = conv_layer_2(conv_output_1)
 
-        # print(lstm_output_2)
-        if not decision_mode:
-            lstm_output_2 = tf.reshape(lstm_output_2, (-1, lstm_output_2.shape[2]))
-        # print(lstm_output_2)
+            _, _, n_pixels, n_filters = conv_output_2.shape
+            flattened_conv = tf.reshape(
+                tensor=conv_output_2,
+                shape=(-1, n_pixels * n_filters),
+                name="flattened_conv",
+            )
 
-        # dense_layer_1 = Dense(units=n_units // 2, activation="relu", name="{}_hidden_dense_1".format(mode_str))
-        # dense_output_1 = dense_layer_1(lstm_output_2)
-        #
-        # dense_layer_2 = Dense(units=n_units // 2, activation="relu", name="{}_hidden_dense_2".format(mode_str))
-        # dense_output_2 = dense_layer_2(dense_output_1)
+            concatted = Concatenate(name="concat")(
+                [flattened_conv]
+                + [
+                    input_tensor
+                    for i, input_tensor in enumerate(input_tensors)
+                    if i != conved_input_index
+                ]
+            )
 
-        output_layer = Dense(
-            units=self._n_output_angles,
-            activation="softmax",
-            name="{}_output_layer".format(mode_str)
-        )
-        output_angle_probabilities = output_layer(lstm_output_2)
+            _, n_units = concatted.shape
+            n_units = int(n_units)
 
-        value_output_layer = Dense(
-            units=1,
-            name="{}_value_layer".format(mode_str)
-        )
-        output_value = value_output_layer(lstm_output_2)
-        # output_sin_cos = output_layer(dense_output_2)
+            if decision_mode:
+                pre_lstm_reshaped = tf.reshape(concatted, (1, 1, n_units), name="pre_lstm_reshaped")
+                stateful = True
+                return_sequences_after = False
+            else:
+                pre_lstm_reshaped = tf.reshape(concatted, (1, -1, n_units), name="pre_lstm_reshaped")
+                stateful = False
+                return_sequences_after = True
 
-        # output_sin_cos = output_layer(lstm_output_2)
-        # if decision_mode:
-        #     self._decision_output_sin_cos = output_sin_cos
-        #
-        # output_angle = tf.atan2(output_sin_cos[:, 0], output_sin_cos[:, 1], name="{}_output_angle".format(mode_str))
+            lstm_layer_1 = LSTM(
+                units=n_units // 2,
+                stateful=stateful,
+                name="lstm_layer_1",
+                return_sequences=True,
+                trainable=trainable,
+            )
+            lstm_output_1 = lstm_layer_1(pre_lstm_reshaped)
 
-        layers = [
-            conv_layer_1,
-            conv_layer_2,
-            lstm_layer_1,
-            lstm_layer_2,
-            output_layer,
-            value_output_layer,
-            # dense_layer_1,
-            # dense_layer_2,
-        ]
+            lstm_layer_2 = LSTM(
+                units=n_units // 2,
+                stateful=stateful,
+                name="lstm_layer_2",
+                return_sequences=return_sequences_after,
+                trainable=trainable,
+            )
+            lstm_output_2 = lstm_layer_2(lstm_output_1)
 
-        return input_tensors, layers, output_angle_probabilities, output_value
+            # print(lstm_output_2)
+            if not decision_mode:
+                lstm_output_2 = tf.reshape(lstm_output_2, (-1, lstm_output_2.shape[2]))
+            # print(lstm_output_2)
+
+            # dense_layer_1 = Dense(units=n_units // 2, activation="relu", name="{}_hidden_dense_1".format(mode_str))
+            # dense_output_1 = dense_layer_1(lstm_output_2)
+            #
+            # dense_layer_2 = Dense(units=n_units // 2, activation="relu", name="{}_hidden_dense_2".format(mode_str))
+            # dense_output_2 = dense_layer_2(dense_output_1)
+
+            output_layer = Dense(
+                units=self._n_output_angles,
+                activation="softmax",
+                name="output_layer",
+                trainable=trainable,
+            )
+            output_angle_probabilities = output_layer(lstm_output_2)
+
+            value_output_layer = Dense(
+                units=1,
+                name="value_layer",
+                trainable=trainable,
+            )
+            output_value = value_output_layer(lstm_output_2)
+            # output_sin_cos = output_layer(dense_output_2)
+
+            # output_sin_cos = output_layer(lstm_output_2)
+            # if decision_mode:
+            #     self._decision_output_sin_cos = output_sin_cos
+            #
+            # output_angle = tf.atan2(output_sin_cos[:, 0], output_sin_cos[:, 1], name="output_angle")
+
+            layers = [
+                conv_layer_1,
+                conv_layer_2,
+                lstm_layer_1,
+                lstm_layer_2,
+                output_layer,
+                value_output_layer,
+                # dense_layer_1,
+                # dense_layer_2,
+            ]
+
+            return input_tensors, layers, output_angle_probabilities, output_value
 
     def _get_input_list(self) -> List[np.ndarray]:
         return [
