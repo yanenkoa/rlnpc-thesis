@@ -553,7 +553,7 @@ class ActorCriticRecurrentLearner:
 
         all_loss = policy_loss + value_loss + 1e-3 * regularization_loss
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=0.1)
+        optimizer = tf.train.AdamOptimizer(learning_rate=0.01)
 
         self._vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "train")
         self._gradients = tf.gradients(all_loss, self._vars)
