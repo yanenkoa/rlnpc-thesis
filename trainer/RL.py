@@ -570,7 +570,7 @@ class ActorCriticRecurrentLearner:
 
         all_loss = policy_loss + value_loss + 1e-3 * regularization_loss
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
+        optimizer = tf.train.AdamOptimizer(learning_rate=0.1)
 
         self._vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "train")
         self._gradients = tf.gradients(all_loss, self._vars)
@@ -681,11 +681,12 @@ class ActorCriticRecurrentLearner:
                         for state_shape in self._state_shapes
                     ]
 
+                    all_rewards = np.array([exp.reward for exp in exps], dtype=np.float32)
+                    norm_rewards = (all_rewards - np.mean(all_rewards)) / np.std(all_rewards)
+
                     current_cumul_reward = 0 if game_over else value
-                    # print(current_cumul_reward)
                     for i_exp in reversed(range(len(exps))):
-                        print(i_exp)
-                        cumul_rewards[i_exp] = exps[i_exp].reward + gamma * current_cumul_reward
+                        cumul_rewards[i_exp] = norm_rewards[i_exp] + gamma * current_cumul_reward
                         current_cumul_reward = cumul_rewards[i_exp]
 
                         chosen_actions[i_exp] = exps[i_exp].chosen_action
@@ -711,7 +712,6 @@ class ActorCriticRecurrentLearner:
             reward_sums.append(self._game_world.player.reward_sum)
 
             if i_episode % 10 == 0 and i_episode != 0:
-                print(reward_sums)
                 tf.logging.info(
                     "Total steps: {total_steps}, Mean reward sum: {mean_reward_sum}".format(
                         total_steps=total_steps,
