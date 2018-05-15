@@ -75,7 +75,7 @@ def main():
     tf.logging.set_verbosity(tf.logging.DEBUG)
 
     argparser = ArgumentParser()
-    argparser.add_argument("--job-dir", default="data")
+    argparser.add_argument("--job-dir", default=None)
 
     args = argparser.parse_args()
 

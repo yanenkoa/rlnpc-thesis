@@ -568,13 +568,16 @@ class ActorCriticRecurrentLearner:
         entropies = -tf.reduce_sum(self._train_output * tf.log(self._train_output), axis=1)
         regularization_loss = -1 / n * tf.reduce_sum(entropies)
 
-        all_loss = policy_loss + value_loss + 5 * 1e-4 * regularization_loss
+        all_loss = policy_loss + value_loss + 1e-3 * regularization_loss
 
-        optimizer = tf.train.RMSPropOptimizer(learning_rate=3 * 1e-4)
+        optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
 
-        self._update_op = optimizer.minimize(all_loss)
+        self._vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "train")
+        self._gradients = tf.gradients(all_loss, self._vars)
+        # print("gradient tensors", self._gradients)
+        # print("vars", self._vars)
 
-        # print(optimizer.variables())
+        self._update_op = optimizer.apply_gradients(zip(self._gradients, self._vars))
 
         self._session.run(tf.global_variables_initializer())
 
@@ -598,8 +601,23 @@ class ActorCriticRecurrentLearner:
         for layer in self._decision_layers:
             print(layer.get_weights())
 
+    def _update_previous(self, angle_index: int, step_hook: Optional[Callable[[], None]]):
+        new_angle = self._get_angle(angle_index)
+        self._previous_action = angle_index
+        self._previous_reward = 0.
+        self._previous_heat = 0.
+        self._previous_exploration_pressure = 0.
+        for _ in range(self._process_config.n_skipped_frames):
+            self._previous_reward += self._game_world.update_world_and_player_and_get_reward(
+                self._time_between_actions_s, new_angle, PlayerMovementDirection.FORWARD
+            )
+            self._previous_heat += self._game_world.player.heat
+            self._previous_exploration_pressure += self._game_world.exploration_pressure
+            if step_hook is not None:
+                step_hook()
+
     def loop(self, step_hook: Optional[Callable[[], None]] = None):
-        print("Start the loop!")
+        # print("Start the loop!")
 
         i = 0
         while True:
@@ -611,20 +629,8 @@ class ActorCriticRecurrentLearner:
             )
             assert not np.any(np.isnan(decision_output))
             new_angle_index = np.random.choice(np.arange(self._n_output_angles), p=decision_output[0])
-            new_angle = self._get_angle(new_angle_index)
 
-            print(decision_output)
-            print(new_angle_index)
-
-            self._previous_reward = 0.
-            for _ in range(self._process_config.n_skipped_frames):
-                self._previous_reward += self._game_world.update_world_and_player_and_get_reward(
-                    self._time_between_actions_s, new_angle, PlayerMovementDirection.FORWARD
-                )
-                if step_hook is not None:
-                    step_hook()
-
-            self._previous_action = new_angle_index
+            self._update_previous(new_angle_index, step_hook)
 
             i += 1
 
@@ -655,21 +661,8 @@ class ActorCriticRecurrentLearner:
                 )
                 assert not np.any(np.isnan(decision_output))
                 new_angle_index = np.random.choice(np.arange(self._n_output_angles), p=decision_output[0])
-                new_angle = self._get_angle(new_angle_index)
 
-                self._previous_action = new_angle_index
-
-                self._previous_reward = 0.
-                self._previous_heat = 0.
-                self._previous_exploration_pressure = 0.
-                for _ in range(self._process_config.n_skipped_frames):
-                    self._previous_reward += self._game_world.update_world_and_player_and_get_reward(
-                        self._time_between_actions_s, new_angle, PlayerMovementDirection.FORWARD
-                    )
-                    self._previous_heat += self._game_world.player.heat
-                    self._previous_exploration_pressure += self._game_world.exploration_pressure
-                    if step_hook is not None:
-                        step_hook()
+                self._update_previous(new_angle_index, step_hook)
 
                 reward_sums.append(self._previous_reward)
 
@@ -688,11 +681,12 @@ class ActorCriticRecurrentLearner:
                         for state_shape in self._state_shapes
                     ]
 
+                    current_cumul_reward = 0 if game_over else value
+                    # print(current_cumul_reward)
                     for i_exp in reversed(range(len(exps))):
-                        if i_exp == len(exps) - 1:
-                            cumul_rewards[i_exp] = 0 if game_over else value
-                        else:
-                            cumul_rewards[i_exp] = exps[i_exp].reward + gamma * cumul_rewards[i_exp + 1]
+                        print(i_exp)
+                        cumul_rewards[i_exp] = exps[i_exp].reward + gamma * current_cumul_reward
+                        current_cumul_reward = cumul_rewards[i_exp]
 
                         chosen_actions[i_exp] = exps[i_exp].chosen_action
                         values[i_exp] = exps[i_exp].value
@@ -716,7 +710,8 @@ class ActorCriticRecurrentLearner:
             # print("finished episode")
             reward_sums.append(self._game_world.player.reward_sum)
 
-            if i_episode % 10 == 0:
+            if i_episode % 10 == 0 and i_episode != 0:
+                print(reward_sums)
                 tf.logging.info(
                     "Total steps: {total_steps}, Mean reward sum: {mean_reward_sum}".format(
                         total_steps=total_steps,
@@ -724,6 +719,7 @@ class ActorCriticRecurrentLearner:
                     )
                 )
                 reward_sums.clear()
+                break
 
             if save_path is not None and i_episode % 100 == 0:
                 self._saver.save(self._session, "{save_path}/model-{i_episode}.ckpt".format(save_path=save_path,
