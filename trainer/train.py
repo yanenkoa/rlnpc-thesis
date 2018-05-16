@@ -63,7 +63,7 @@ def ac_training(world_config, path: str):
     learner = ActorCriticRecurrentLearner(
         world,
         tf.Session(),
-        8,
+        16,
         framerate,
         7,
         config
