@@ -769,7 +769,7 @@ class World:
                         and not self._wall_collision_checker.segment_collides_with_walls(
                             LineSegment(current_position, visit_position)
                         )
-                        and self._current_time_s - time > 1.
+                        # and self._current_time_s - time > 1.
                     )
                 ),
                 key=lambda t: t[1]

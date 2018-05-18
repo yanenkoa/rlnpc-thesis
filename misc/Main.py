@@ -67,9 +67,9 @@ def main():
         7,
         config
     )
-    learner.initialize()
+    learner.initialize_a2c()
 
-    learner.load_model("gs://eneka-models/data1", 300)
+    learner.load_model("gs://eneka-models/a2c_norm_rewards", 300)
 
     # learner.print_weights()
 

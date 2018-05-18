@@ -404,7 +404,8 @@ class ActorCriticRecurrentLearner:
                 name="conv1",
                 trainable=trainable
             )
-            conv_output_1 = PReLU()(conv_layer_1(conved_input))
+            # conv_output_1 = PReLU()(conv_layer_1(conved_input))
+            conv_output_1 = conv_layer_1(conved_input)
 
             conv_layer_2 = Conv2D(
                 filters=16,
@@ -414,7 +415,8 @@ class ActorCriticRecurrentLearner:
                 name="conv2",
                 trainable=trainable
             )
-            conv_output_2 = PReLU()(conv_layer_2(conv_output_1))
+            # conv_output_2 = PReLU()(conv_layer_2(conv_output_1))
+            conv_output_2 = conv_layer_2(conv_output_1)
 
             _, _, n_pixels, n_filters = conv_output_2.shape
             flattened_conv = tf.reshape(
@@ -445,7 +447,7 @@ class ActorCriticRecurrentLearner:
                 return_sequences_after = True
 
             lstm_layer_1 = LSTM(
-                units=n_units,
+                units=n_units // 2,
                 stateful=stateful,
                 name="lstm_layer_1",
                 return_sequences=True,
@@ -454,7 +456,7 @@ class ActorCriticRecurrentLearner:
             lstm_output_1 = lstm_layer_1(pre_lstm_reshaped)
 
             lstm_layer_2 = LSTM(
-                units=n_units,
+                units=n_units // 2,
                 stateful=stateful,
                 name="lstm_layer_2",
                 return_sequences=return_sequences_after,
@@ -465,19 +467,19 @@ class ActorCriticRecurrentLearner:
             if not decision_mode:
                 lstm_output_2 = tf.reshape(lstm_output_2, (-1, lstm_output_2.shape[2]))
 
-            dense_layer_1 = Dense(
-                units=n_units // 2,
-                activation="linear",
-                name="dense_layer_1"
-            )
-            dense_output_1 = PReLU()(dense_layer_1(lstm_output_2))
-
-            dense_layer_2 = Dense(
-                units=n_units // 2,
-                activation="linear",
-                name="dense_layer_2"
-            )
-            dense_output_2 = PReLU()(dense_layer_2(dense_output_1))
+            # dense_layer_1 = Dense(
+            #     units=n_units // 2,
+            #     activation="linear",
+            #     name="dense_layer_1"
+            # )
+            # dense_output_1 = PReLU()(dense_layer_1(lstm_output_2))
+            #
+            # dense_layer_2 = Dense(
+            #     units=n_units // 2,
+            #     activation="linear",
+            #     name="dense_layer_2"
+            # )
+            # dense_output_2 = PReLU()(dense_layer_2(dense_output_1))
 
             output_layer = Dense(
                 units=self._n_output_angles,
@@ -485,22 +487,24 @@ class ActorCriticRecurrentLearner:
                 name="output_layer",
                 trainable=trainable,
             )
-            output_angle_probabilities = output_layer(dense_output_2)
+            # output_angle_probabilities = output_layer(dense_output_2)
+            output_angle_probabilities = output_layer(lstm_output_2)
 
             value_output_layer = Dense(
                 units=1,
                 name="value_layer",
                 trainable=trainable,
             )
-            output_value = value_output_layer(dense_output_2)
+            # output_value = value_output_layer(dense_output_2)
+            output_value = value_output_layer(lstm_output_2)
 
             layers = [
                 conv_layer_1,
                 conv_layer_2,
                 lstm_layer_1,
                 lstm_layer_2,
-                dense_layer_1,
-                dense_layer_2,
+                # dense_layer_1,
+                # dense_layer_2,
                 output_layer,
                 value_output_layer,
             ]
@@ -523,7 +527,7 @@ class ActorCriticRecurrentLearner:
     def _get_angle(self, action_index: int) -> float:
         return np.linspace(-np.pi, np.pi, self._n_output_angles, False)[action_index]
 
-    def initialize(self) -> None:
+    def initialize_a2c(self) -> None:
         tf.logging.info("Initializing A2C")
 
         keras.backend.set_session(self._session)
@@ -565,7 +569,7 @@ class ActorCriticRecurrentLearner:
 
         all_loss = policy_loss + value_loss + 1e-3 * regularization_loss
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=0.01)
+        optimizer = tf.train.AdamOptimizer(learning_rate=0.005)
 
         self._vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "train")
         self._gradients = tf.gradients(all_loss, self._vars)
@@ -575,6 +579,24 @@ class ActorCriticRecurrentLearner:
         self._session.run(tf.global_variables_initializer())
 
         self._saver = tf.train.Saver()
+
+    def initialize_dqn(self) -> None:
+        tf.logging.info("Initializing A2C")
+
+        keras.backend.set_session(self._session)
+
+        (
+            self._decision_input_tensors,
+            self._decision_layers,
+            self._decision_output,
+            self._decision_value,
+        ) = self._initialize_network(0, True)
+        (
+            self._train_input_tensors,
+            self._train_layers,
+            self._train_output,
+            self._train_value_output
+        ) = self._initialize_network(0, False)
 
     def load_model(self, path: str, step: int):
         tf.logging.info("Loading model...")
@@ -625,7 +647,9 @@ class ActorCriticRecurrentLearner:
 
             self._update_previous(new_angle_index, step_hook)
 
-            i += 1
+            # i += self._process_config.n_skipped_frames
+            # if i > self._process_config.max_ep_length:
+            #     break
 
     def train(self, save_path: Optional[str] = None, step_hook: Optional[Callable[[], None]] = None) -> None:
         tf.logging.info("Starting training A2C agent")
@@ -861,16 +885,16 @@ class DeepQLearnerWithExperienceReplay:
             # self._position_input_tensor,
         ])
 
-        hidden_dense0 = Dense(units=self._n_sensor_inputs * 8, activation="relu", name="hidden_dense1")
+        hidden_dense0 = Dense(units=self._n_sensor_inputs , activation="relu", name="hidden_dense1")
         x = hidden_dense0(concatenated_input)
 
-        hidden_dense1 = Dense(units=self._n_sensor_inputs * 4, activation="relu", name="hidden_dense1")
+        hidden_dense1 = Dense(units=self._n_sensor_inputs, activation="relu", name="hidden_dense1")
         x = hidden_dense1(x)
 
-        hidden_dense2 = Dense(units=self._n_sensor_inputs * 2, activation="relu", name="hidden_dense2")
+        hidden_dense2 = Dense(units=self._n_sensor_inputs // 2, activation="relu", name="hidden_dense2")
         x = hidden_dense2(x)
 
-        hidden_dense3 = Dense(units=self._n_sensor_inputs, activation="relu", name="hidden_dense3")
+        hidden_dense3 = Dense(units=self._n_sensor_inputs // 2, activation="relu", name="hidden_dense3")
         x = hidden_dense3(x)
 
         output_layer = Dense(units=self._n_output_angles + 1, name="action_quality")
