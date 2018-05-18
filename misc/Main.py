@@ -62,14 +62,14 @@ def main():
     learner = ActorCriticRecurrentLearner(
         world,
         tf.Session(),
-        32,
+        8,
         framerate,
         7,
         config
     )
     learner.initialize_a2c()
 
-    learner.load_model("gs://eneka-models/a2c_norm_rewards", 300)
+    # learner.load_model("gs://eneka-models/a2c_norm_rewards", 300)
 
     # learner.print_weights()
 

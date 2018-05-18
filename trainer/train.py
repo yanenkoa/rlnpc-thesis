@@ -3,7 +3,6 @@ from argparse import ArgumentParser
 import numpy as np
 import tensorflow as tf
 
-from misc.Rendering import RenderWorld
 from trainer.Configs import config_one
 from trainer.GameObjects import World
 from trainer.RL import DeepQLearnerWithExperienceReplay, LearningProcessConfig, ActorCriticRecurrentLearner
@@ -71,9 +70,9 @@ def ac_training(world_config, path: str):
     )
     learner.initialize_a2c()
 
-    render_world = RenderWorld(world)
-    render_world.start_drawing()
-    learner.train(path, render_world.update)
+    # render_world = RenderWorld(world)
+    # render_world.start_drawing()
+    learner.train(path)
 
 
 def main():
