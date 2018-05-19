@@ -525,7 +525,7 @@ class ActorCriticRecurrentLearner:
             decision_layer.set_weights(train_layer.get_weights())
 
     def _get_angle(self, action_index: int) -> float:
-        return np.linspace(-np.pi, np.pi, self._n_output_angles, False)[action_index]
+        return self._game_world.player.angle + np.linspace(-np.pi, np.pi, self._n_output_angles, False)[action_index]
 
     def initialize_a2c(self) -> None:
         tf.logging.info("Initializing A2C")

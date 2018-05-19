@@ -140,7 +140,7 @@ class Player:
         return self._gold
 
     @property
-    def heat(self):
+    def heat(self) -> float:
         return self._heat
 
     @property
