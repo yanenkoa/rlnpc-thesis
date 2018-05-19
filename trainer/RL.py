@@ -244,7 +244,11 @@ LearningProcessConfig = namedtuple("LearningProcessConfig", [
     "pre_train_steps",
     "max_ep_length",
     "buffer_size",
-    "n_skipped_frames"
+    "n_skipped_frames",
+    "target_network_update_frequency",
+    "initial_temperature",
+    "temp_coef",
+    "min_temperature",
 ])
 
 
@@ -266,6 +270,7 @@ class ActorCriticRecurrentLearner:
     _exploration_pressure_shape = ...  # type: Tuple
     _previous_reward_shape = ...  # type: Tuple
     _previous_action_shape = ...  # type: Tuple
+    _exploration_temp_state_shape = ...  # type: Tuple
     _state_shapes = ...  # type: List[Tuple]
     _state_names = ...  # type: List[str]
 
@@ -316,6 +321,7 @@ class ActorCriticRecurrentLearner:
         self._exploration_pressure_shape = (1,)
         self._previous_reward_shape = (1,)
         self._previous_action_shape = (self._n_output_angles,)
+        self._exploration_temp_state_shape = (1,)
 
         self._state_shapes = [
             self._sensor_state_shape,
@@ -323,6 +329,7 @@ class ActorCriticRecurrentLearner:
             self._exploration_pressure_shape,
             self._previous_reward_shape,
             self._previous_action_shape,
+            self._exploration_temp_state_shape,
         ]
 
         self._state_names = [
@@ -331,12 +338,17 @@ class ActorCriticRecurrentLearner:
             "exploration_pressure",
             "previous_reward",
             "previous_action",
+            "exploration_temp"
         ]
+
+        self._sensor_input_index = 0
+        self._exploration_temp_index = len(self._state_names) - 1
 
         self._previous_heat = 0.
         self._previous_exploration_pressure = 0.
         self._previous_reward = 0.
         self._previous_action = 0
+        self._current_exploration_temperature = float(self._process_config.initial_temperature)
 
     def _get_sensor_input(self) -> np.ndarray:
         distances = self._game_world.proximity_sensors_np.distances
@@ -372,14 +384,21 @@ class ActorCriticRecurrentLearner:
         self._previous_action = None
         return result
 
-    def _initialize_network(
-            self,
-            conved_input_index: int,
-            decision_mode: bool
-    ) -> Tuple[List[tf.Tensor], List[Layer], tf.Tensor, tf.Tensor]:
+    def _get_exploration_temp(self) -> np.ndarray:
+        return np.array([[float(self._current_exploration_temperature)]], dtype=np.float32)
 
+    def _get_input_list(self) -> List[np.ndarray]:
+        return [
+            self._get_sensor_input(),
+            self._get_heat_input(),
+            self._get_exploration_pressure_input(),
+            self._get_previous_reward(),
+            self._get_previous_action(),
+            self._get_exploration_temp(),
+        ]
+
+    def _initialize_network(self, decision_mode: bool) -> Tuple[List[tf.Tensor], List[Layer], tf.Tensor, tf.Tensor]:
         scope_name = "decision" if decision_mode else "train"
-
         with tf.variable_scope(scope_name):
 
             batch_size = 1 if decision_mode else None
@@ -392,7 +411,7 @@ class ActorCriticRecurrentLearner:
                 for shape, name in zip(self._state_shapes, self._state_names)
             ]
 
-            conved_input = input_tensors[conved_input_index]
+            conved_input = input_tensors[self._sensor_input_index]
 
             trainable = not decision_mode
 
@@ -430,7 +449,7 @@ class ActorCriticRecurrentLearner:
                 + [
                     input_tensor
                     for i, input_tensor in enumerate(input_tensors)
-                    if i != conved_input_index
+                    if i != self._sensor_input_index and i != self._exploration_temp_index
                 ]
             )
 
@@ -467,58 +486,50 @@ class ActorCriticRecurrentLearner:
             if not decision_mode:
                 lstm_output_2 = tf.reshape(lstm_output_2, (-1, lstm_output_2.shape[2]))
 
-            # dense_layer_1 = Dense(
-            #     units=n_units // 4,
-            #     activation="linear",
-            #     name="dense_layer_1"
-            # )
-            # dense_output_1 = PReLU()(dense_layer_1(lstm_output_2))
-            #
-            # dense_layer_2 = Dense(
-            #     units=n_units // 4,
-            #     activation="linear",
-            #     name="dense_layer_2"
-            # )
-            # dense_output_2 = PReLU()(dense_layer_2(dense_output_1))
+            dense_layer_1 = Dense(
+                units=n_units // 4,
+                activation="linear",
+                name="dense_layer_1"
+            )
+            dense_output_1 = PReLU()(dense_layer_1(lstm_output_2))
+
+            dense_layer_2 = Dense(
+                units=n_units // 4,
+                activation="linear",
+                name="dense_layer_2"
+            )
+            dense_output_2 = PReLU()(dense_layer_2(dense_output_1))
 
             output_layer = Dense(
                 units=self._n_output_angles,
-                activation="softmax",
+                activation="linear",
                 name="output_layer",
                 trainable=trainable,
             )
-            output_angle_probabilities = output_layer(lstm_output_2)
-            # output_angle_probabilities = output_layer(lstm_output_2)
+            output_angle_values = output_layer(dense_output_2)
+            current_temp = input_tensors[self._exploration_temp_index]
+            cooled = output_angle_values / current_temp
+            output_angle_probabilities = tf.nn.softmax(cooled, name="output_angle_probabilites")
 
             value_output_layer = Dense(
                 units=1,
                 name="value_layer",
                 trainable=trainable,
             )
-            output_value = value_output_layer(lstm_output_2)
-            # output_value = value_output_layer(lstm_output_2)
+            output_value = value_output_layer(dense_output_2)
 
             layers = [
                 conv_layer_1,
                 conv_layer_2,
                 lstm_layer_1,
                 lstm_layer_2,
-                # dense_layer_1,
-                # dense_layer_2,
+                dense_layer_1,
+                dense_layer_2,
                 output_layer,
                 value_output_layer,
             ]
 
             return input_tensors, layers, output_angle_probabilities, output_value
-
-    def _get_input_list(self) -> List[np.ndarray]:
-        return [
-            self._get_sensor_input(),
-            self._get_heat_input(),
-            self._get_exploration_pressure_input(),
-            self._get_previous_reward(),
-            self._get_previous_action(),
-        ]
 
     def _copy_weights_from_train_to_decision(self) -> None:
         for decision_layer, train_layer in zip(self._decision_layers, self._train_layers):
@@ -537,13 +548,13 @@ class ActorCriticRecurrentLearner:
             self._decision_layers,
             self._decision_output,
             self._decision_value,
-        ) = self._initialize_network(0, True)
+        ) = self._initialize_network(True)
         (
             self._train_input_tensors,
             self._train_layers,
             self._train_output,
             self._train_value_output
-        ) = self._initialize_network(0, False)
+        ) = self._initialize_network(False)
 
         self._update_chosen_actions = tf.placeholder(
             dtype=tf.int32, shape=(None,), name="update_chosen_actions"
@@ -569,7 +580,7 @@ class ActorCriticRecurrentLearner:
 
         all_loss = policy_loss + value_loss + 1e-3 * regularization_loss
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=0.005)
+        optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
 
         self._vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "train")
         self._gradients = tf.gradients(all_loss, self._vars)
@@ -579,24 +590,6 @@ class ActorCriticRecurrentLearner:
         self._session.run(tf.global_variables_initializer())
 
         self._saver = tf.train.Saver()
-
-    def initialize_dqn(self) -> None:
-        tf.logging.info("Initializing A2C")
-
-        keras.backend.set_session(self._session)
-
-        (
-            self._decision_input_tensors,
-            self._decision_layers,
-            self._decision_output,
-            self._decision_value,
-        ) = self._initialize_network(0, True)
-        (
-            self._train_input_tensors,
-            self._train_layers,
-            self._train_output,
-            self._train_value_output
-        ) = self._initialize_network(0, False)
 
     def load_model(self, path: str, step: int):
         tf.logging.info("Loading model...")
@@ -612,10 +605,6 @@ class ActorCriticRecurrentLearner:
 
         self._saver.restore(self._session, our_checkpoint_path)
 
-    def print_weights(self):
-        for layer in self._decision_layers:
-            print(layer.get_weights())
-
     def _update_previous(self, angle_index: int, step_hook: Optional[Callable[[], None]]):
         new_angle = self._get_angle(angle_index)
         self._previous_action = angle_index
@@ -630,6 +619,11 @@ class ActorCriticRecurrentLearner:
             self._previous_exploration_pressure += self._game_world.exploration_pressure
             if step_hook is not None:
                 step_hook()
+
+    def _update_temperature(self) -> None:
+        if self._current_exploration_temperature <= self._process_config.min_temperature:
+            return
+        self._current_exploration_temperature -= self._process_config.temp_coef * self._current_exploration_temperature
 
     def loop(self, step_hook: Optional[Callable[[], None]] = None):
         # print("Start the loop!")
@@ -655,8 +649,10 @@ class ActorCriticRecurrentLearner:
         tf.logging.info("Starting training A2C agent")
 
         total_steps = 0
+        total_updates = 0
         t_max = self._process_config.update_frequency
         gamma = self._process_config.reward_discount_coef
+        self._current_exploration_temperature = float(self._process_config.initial_temperature)
 
         reward_sums = []
 
@@ -680,6 +676,7 @@ class ActorCriticRecurrentLearner:
                 new_angle_index = np.random.choice(np.arange(self._n_output_angles), p=decision_output[0])
 
                 self._update_previous(new_angle_index, step_hook)
+                self._update_temperature()
 
                 reward_sums.append(self._previous_reward)
 
@@ -688,6 +685,8 @@ class ActorCriticRecurrentLearner:
                 game_over = self._game_world.game_over
 
                 if game_over or len(exps) >= t_max:
+                    total_updates += 1
+
                     cumul_rewards = np.empty(shape=(len(exps),), dtype=np.float32)
                     chosen_actions = np.empty(shape=(len(exps),), dtype=np.int32)
                     values = np.empty(shape=(len(exps),), dtype=np.float32)
@@ -718,7 +717,8 @@ class ActorCriticRecurrentLearner:
 
                     self._session.run(self._update_op, fd)
 
-                    self._copy_weights_from_train_to_decision()
+                    if total_updates % self._process_config.target_network_update_frequency == 0:
+                        self._copy_weights_from_train_to_decision()
 
                 if i_step >= self._process_config.max_ep_length or game_over:
                     break
@@ -728,9 +728,10 @@ class ActorCriticRecurrentLearner:
 
             if i_episode % 10 == 0 and i_episode != 0:
                 tf.logging.info(
-                    "Total steps: {total_steps}, Mean reward sum: {mean_reward_sum}".format(
+                    "Total steps: {total_steps}, Mean reward sum: {mean_reward_sum}, Temperature: {temp}".format(
                         total_steps=total_steps,
                         mean_reward_sum=np.mean(reward_sums[-10:]),
+                        temp=self._current_exploration_temperature,
                     )
                 )
                 reward_sums.clear()

@@ -54,11 +54,15 @@ def initialize_ac_learner(world_config) -> ActorCriticRecurrentLearner:
         max_ep_length=max_ep_length,
         buffer_size=None,
         n_skipped_frames=n_skipped_frames,
+        target_network_update_frequency=1000,
+        initial_temperature=10,
+        temp_coef=0.00001,
+        min_temperature=0.5,
     )
     learner = ActorCriticRecurrentLearner(
         world,
         tf.Session(),
-        16,
+        8,
         framerate,
         7,
         config
