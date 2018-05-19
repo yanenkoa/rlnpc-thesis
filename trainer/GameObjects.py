@@ -683,7 +683,7 @@ class World:
 
         self._proximity_sensors_np = proximity_sensors_np
 
-        self._remember_position_interval_s = 0.3
+        self._remember_position_interval_s = 1
         self._visit_reward_impact_decay_per_s = 0.92
         self._n_nearby_visit_points = 100
         self._visit_coef_ps = 1000.

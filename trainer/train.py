@@ -42,10 +42,10 @@ def ac_training(world_config, path: str):
 
     frames_in_second = 60
     n_skipped_frames = 15
-    max_minutes = 2
+    max_minutes = 5
     framerate = 1. / frames_in_second
     max_ep_length = max_minutes * 60 * frames_in_second // n_skipped_frames
-    update_frequency = max_ep_length // 3
+    update_frequency = max_ep_length // 5
 
     config = LearningProcessConfig(
         replay_size=None,
