@@ -467,19 +467,19 @@ class ActorCriticRecurrentLearner:
             if not decision_mode:
                 lstm_output_2 = tf.reshape(lstm_output_2, (-1, lstm_output_2.shape[2]))
 
-            dense_layer_1 = Dense(
-                units=n_units // 4,
-                activation="linear",
-                name="dense_layer_1"
-            )
-            dense_output_1 = PReLU()(dense_layer_1(lstm_output_2))
-
-            dense_layer_2 = Dense(
-                units=n_units // 4,
-                activation="linear",
-                name="dense_layer_2"
-            )
-            dense_output_2 = PReLU()(dense_layer_2(dense_output_1))
+            # dense_layer_1 = Dense(
+            #     units=n_units // 4,
+            #     activation="linear",
+            #     name="dense_layer_1"
+            # )
+            # dense_output_1 = PReLU()(dense_layer_1(lstm_output_2))
+            #
+            # dense_layer_2 = Dense(
+            #     units=n_units // 4,
+            #     activation="linear",
+            #     name="dense_layer_2"
+            # )
+            # dense_output_2 = PReLU()(dense_layer_2(dense_output_1))
 
             output_layer = Dense(
                 units=self._n_output_angles,
@@ -487,7 +487,7 @@ class ActorCriticRecurrentLearner:
                 name="output_layer",
                 trainable=trainable,
             )
-            output_angle_probabilities = output_layer(dense_output_2)
+            output_angle_probabilities = output_layer(lstm_output_2)
             # output_angle_probabilities = output_layer(lstm_output_2)
 
             value_output_layer = Dense(
@@ -495,7 +495,7 @@ class ActorCriticRecurrentLearner:
                 name="value_layer",
                 trainable=trainable,
             )
-            output_value = value_output_layer(dense_output_2)
+            output_value = value_output_layer(lstm_output_2)
             # output_value = value_output_layer(lstm_output_2)
 
             layers = [
@@ -503,8 +503,8 @@ class ActorCriticRecurrentLearner:
                 conv_layer_2,
                 lstm_layer_1,
                 lstm_layer_2,
-                dense_layer_1,
-                dense_layer_2,
+                # dense_layer_1,
+                # dense_layer_2,
                 output_layer,
                 value_output_layer,
             ]
