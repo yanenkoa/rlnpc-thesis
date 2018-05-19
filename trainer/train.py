@@ -34,19 +34,14 @@ def cloud_ml_training(world_config, path: str):
     learner.train(path)
 
 
-def ac_training(world_config, path: str):
-    tf.logging.set_verbosity(tf.logging.DEBUG)
-    tf.logging.info("Writing to {path}".format(path=path))
-
+def initialize_ac_learner(world_config) -> ActorCriticRecurrentLearner:
     world = World(*world_config)
-
     frames_in_second = 60
     n_skipped_frames = 15
     max_minutes = 5
     framerate = 1. / frames_in_second
     max_ep_length = max_minutes * 60 * frames_in_second // n_skipped_frames
     update_frequency = max_ep_length // 5
-
     config = LearningProcessConfig(
         replay_size=None,
         update_frequency=update_frequency,
@@ -69,6 +64,14 @@ def ac_training(world_config, path: str):
         config
     )
     learner.initialize_a2c()
+    return learner
+
+
+def ac_training(world_config, path: str):
+    tf.logging.set_verbosity(tf.logging.DEBUG)
+    tf.logging.info("Writing to {path}".format(path=path))
+
+    learner = initialize_ac_learner(world_config)
 
     # render_world = RenderWorld(world)
     # render_world.start_drawing()

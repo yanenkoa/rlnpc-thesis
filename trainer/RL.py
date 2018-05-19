@@ -742,6 +742,9 @@ class ActorCriticRecurrentLearner:
 
         self._saver.save(self._session, "{save_path}/model-final.ckpt".format(save_path=save_path))
 
+    def get_world(self) -> World:
+        return self._game_world
+
 
 Exp = namedtuple("Exp", "chosen_action value reward inputs")
 

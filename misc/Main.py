@@ -8,6 +8,7 @@ from misc.InputDevice import InputDevice
 from misc.Rendering import RenderWorld
 from trainer.Configs import config_one
 from trainer.GameObjects import World
+from trainer.train import initialize_ac_learner
 from trainer.RL import DeepQLearnerWithExperienceReplay, LearningProcessConfig, ActorCriticRecurrentLearner
 
 
@@ -33,50 +34,19 @@ def cloud_ml_training(world_config):
     learner.train("data")
 
 
-def main():
-    world = World(*config_one())
+def load_n_loop(learner: ActorCriticRecurrentLearner, load_path: str, n_iter: int) -> None:
+    learner.load_model(load_path, n_iter)
 
-    # turn_rate_ps = pi / 0.8
-    # input_device = InputDevice()
-    # controller = KeyboardController(turn_rate_ps, input_device, world)
-    # controller.loop()
-
-    frames_in_second = 60
-    n_skipped_frames = 15
-    max_minutes = 2
-    framerate = 1. / frames_in_second
-
-    config = LearningProcessConfig(
-        replay_size=None,
-        update_frequency=16,
-        reward_discount_coef=0.9,
-        start_random_action_prob=None,
-        end_random_action_prob=None,
-        annealing_steps=None,
-        n_training_episodes=5000,
-        pre_train_steps=None,
-        max_ep_length=max_minutes * 60 * frames_in_second // n_skipped_frames,
-        buffer_size=None,
-        n_skipped_frames=n_skipped_frames,
-    )
-    learner = ActorCriticRecurrentLearner(
-        world,
-        tf.Session(),
-        8,
-        framerate,
-        7,
-        config
-    )
-    learner.initialize_a2c()
-
-    # learner.load_model("gs://eneka-models/a2c_norm_rewards", 300)
-
-    # learner.print_weights()
-
-    render_world = RenderWorld(world)
+    render_world = RenderWorld(learner.get_world())
     render_world.start_drawing()
     learner.loop(render_world.update)
-    # learner.train(None, render_world.update)
+
+
+def main():
+    learner = initialize_ac_learner(config_one())
+    load_path = None
+    n_iter = None
+    load_n_loop(learner, load_path, n_iter)
 
 
 if __name__ == '__main__':
