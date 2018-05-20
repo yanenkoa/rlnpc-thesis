@@ -866,3 +866,7 @@ class World:
     @property
     def exploration_pressure(self):
         return self._exploration_pressure
+
+    @property
+    def current_time_s(self):
+        return self._current_time_s

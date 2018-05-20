@@ -6,7 +6,7 @@ import tensorflow as tf
 from misc.Controllers import KeyboardController
 from misc.InputDevice import InputDevice
 from misc.Rendering import RenderWorld
-from trainer.Configs import config_one
+from trainer.Configs import config_one, config_two
 from trainer.GameObjects import World
 from trainer.train import initialize_ac_learner
 from trainer.RL import DeepQLearnerWithExperienceReplay, LearningProcessConfig, ActorCriticRecurrentLearner
@@ -34,19 +34,19 @@ def cloud_ml_training(world_config):
     learner.train("data")
 
 
-def load_n_loop(learner: ActorCriticRecurrentLearner, load_path: str, n_iter: int) -> None:
+def load_n_loop(learner: ActorCriticRecurrentLearner, load_path: str, n_iter: int, temp: float) -> None:
     learner.load_model(load_path, n_iter)
 
     render_world = RenderWorld(learner.get_world())
     render_world.start_drawing()
-    learner.loop(render_world.update)
+    learner.loop(temp, render_world.update)
 
 
 def main():
-    learner = initialize_ac_learner(config_one())
-    load_path = None
-    n_iter = None
-    load_n_loop(learner, load_path, n_iter)
+    learner = initialize_ac_learner(config_two())
+    load_path = "gs://eneka-models/a2c_deeper_temp"
+    n_iter = 200
+    load_n_loop(learner, load_path, n_iter, 0.05)
 
 
 if __name__ == '__main__':

@@ -39,11 +39,13 @@ def get_player_text(world: World):
             'Gold: {gold}\n'
             'Heat: {heat}\n'
             'Reward: {reward_sum}\n'
+            'Time: {time}\n'
             '{game_over}'
         ).format(
             gold=player.gold,
             heat=player.heat,
             reward_sum=player.reward_sum,
+            time=world.current_time_s,
             game_over=("Game over!" if world.game_over else "")
         )
     )

@@ -627,8 +627,10 @@ class ActorCriticRecurrentLearner:
             return
         self._current_exploration_temperature -= self._process_config.temp_coef * self._current_exploration_temperature
 
-    def loop(self, step_hook: Optional[Callable[[], None]] = None):
+    def loop(self, temperature: float, step_hook: Optional[Callable[[], None]] = None):
         # print("Start the loop!")
+
+        self._current_exploration_temperature = temperature
 
         i = 0
         while True:

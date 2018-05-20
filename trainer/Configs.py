@@ -94,16 +94,16 @@ def config_two():
     bottom_wall = RectangleWall(RectangleAABB(Vector2(0, -100), Vector2(width, 0)))
     walls.extend([left_wall, top_wall, right_wall, bottom_wall])
     gold_chests = [
-        GoldChest(500, Vector2(100, height / 2))
+        GoldChest(50, Vector2(100, height / 2)),
     ]
     heat_sources = []
     portal = Portal(Vector2(800, 500))
     proximity_sensors_np = ProximitySensors(
         player,
-        np.linspace(-np.pi / 2, np.pi / 2, 64, False),
-        600,
+        np.linspace(-np.pi, np.pi, 60, False),
+        700,
         walls,
         gold_chests,
-        portal
+        portal,
     )
     return width, height, player, walls, gold_chests, heat_sources, portal, proximity_sensors_np
