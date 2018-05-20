@@ -63,7 +63,7 @@ class Player:
     height = 15.0  # type: float
 
     _reward_lost_heat_coef_ps = 1.  # type: float
-    _portal_reward = 50.  # type: float
+    _portal_reward = 10.  # type: float
 
     _init_angle = ...  # type: float
     _init_position = ...  # type: Vector2

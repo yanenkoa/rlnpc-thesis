@@ -619,6 +619,8 @@ class ActorCriticRecurrentLearner:
             self._previous_exploration_pressure += self._game_world.exploration_pressure
             if step_hook is not None:
                 step_hook()
+            if self._game_world.game_over:
+                break
 
     def _update_temperature(self) -> None:
         if self._current_exploration_temperature <= self._process_config.min_temperature:
