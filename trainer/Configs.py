@@ -3,7 +3,8 @@ from typing import Tuple
 import numpy as np
 
 from trainer.GameObjects import Player, RectangleWall, GoldChest, Portal, ProximitySensors, HeatSource
-from trainer.RL import NetworkConfig, ConvConfig, LSTMConfig, DenseConfig, LearningProcessConfig
+from trainer.RL import NetworkConfig, ConvConfig, LSTMConfig, DenseConfig, LearningProcessConfig, \
+    network_config_to_dict, dict_to_network_config
 from trainer.Util import Vector2, RectangleAABB
 
 
@@ -136,6 +137,8 @@ def rl_config() -> Tuple[LearningProcessConfig, NetworkConfig]:
         temp_coef=0.00001,
         min_temperature=0.5,
         framerate=framerate,
+        regularization_loss_coef=1e-3,
+        learning_rate=0.001,
     )
     net_conf = NetworkConfig(
         window_size=7,

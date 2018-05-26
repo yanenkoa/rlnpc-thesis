@@ -1,4 +1,5 @@
 from collections import namedtuple
+from pprint import pprint
 from typing import Tuple, Callable, Optional, List, Type, Dict, Any, Union
 
 import keras
@@ -249,6 +250,8 @@ LearningProcessConfig = namedtuple("LearningProcessConfig", [
     "temp_coef",
     "min_temperature",
     "framerate",
+    "regularization_loss_coef",
+    "learning_rate",
 ])
 
 
@@ -665,9 +668,9 @@ class ActorCriticRecurrentLearner:
         entropies = -tf.reduce_sum(self._train_output * tf.log(self._train_output), axis=1)
         regularization_loss = -1 / n * tf.reduce_sum(entropies)
 
-        all_loss = policy_loss + value_loss + 1e-3 * regularization_loss
+        all_loss = policy_loss + value_loss + self._process_config.regularization_loss_coef * regularization_loss
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
+        optimizer = tf.train.AdamOptimizer(learning_rate=self._process_config.learning_rate)
 
         self._vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "train")
         self._gradients = tf.gradients(all_loss, self._vars)
