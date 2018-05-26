@@ -1,3 +1,5 @@
+import json
+from pprint import pprint
 from typing import Tuple
 
 import numpy as np
@@ -180,3 +182,45 @@ def rl_config() -> Tuple[LearningProcessConfig, NetworkConfig]:
     )
 
     return lp_config, net_conf
+
+
+def get_config(path: str) -> Tuple[LearningProcessConfig, NetworkConfig]:
+    with open(path) as f:
+        json_config = json.load(f)
+
+    learning_process_config = LearningProcessConfig(**json_config["learning_process_config"])
+    network_config = dict_to_network_config(json_config["network_config"])
+
+    return learning_process_config, network_config
+
+
+def dump_config(lpc: LearningProcessConfig, nc: NetworkConfig, path: str) -> None:
+    json_lpc = dict(lpc._asdict())
+    json_nc = network_config_to_dict(nc)
+    json_result = {
+        "learning_process_config": json_lpc,
+        "network_config": json_nc,
+    }
+
+    import pathlib
+    pathlib.Path(path.rpartition("/")[0]).mkdir(parents=True, exist_ok=True)
+
+    with open(path, mode="w+") as f:
+        json.dump(json_result, f, indent=2, separators=(',', ': '))
+
+
+def main():
+    config_funcs = [rl_config]
+    print("Choose a config to dump:")
+    print("0: rl_config")
+
+    i_config = int(input())
+    lpc, network_config = config_funcs[i_config]()
+
+    path = input("Enter config file path: ")
+
+    dump_config(lpc, network_config, path)
+
+
+if __name__ == '__main__':
+    main()
