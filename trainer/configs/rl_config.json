@@ -1,0 +1,64 @@
+{
+  "network_config": {
+    "window_size": 7,
+    "lstm_configs": [
+      {
+        "units": 437,
+        "name": "lstm_layer_1",
+        "activation": "tanh",
+        "recurrent_activation": "hard_sigmoid"
+      },
+      {
+        "units": 437,
+        "name": "lstm_layer_2",
+        "activation": "tanh",
+        "recurrent_activation": "hard_sigmoid"
+      }
+    ],
+    "n_output_angles": 8,
+    "dense_configs": [
+      {
+        "units": 218,
+        "name": "dense_layer_1",
+        "activation": "prelu"
+      },
+      {
+        "units": 218,
+        "name": "dense_layer_2",
+        "activation": "prelu"
+      }
+    ],
+    "conv_configs": [
+      {
+        "filters": 16,
+        "name": "conv1",
+        "activation": "prelu"
+      },
+      {
+        "filters": 16,
+        "name": "conv2",
+        "activation": "prelu"
+      }
+    ]
+  },
+  "learning_process_config": {
+    "update_frequency": 240,
+    "initial_temperature": 10,
+    "n_training_episodes": 5000,
+    "temp_coef": 1e-05,
+    "end_random_action_prob": null,
+    "regularization_loss_coef": 0.001,
+    "replay_size": null,
+    "learning_rate": 0.001,
+    "min_temperature": 0.5,
+    "n_skipped_frames": 15,
+    "max_ep_length": 1200,
+    "pre_train_steps": null,
+    "target_network_update_frequency": 1000,
+    "framerate": 0.016666666666666666,
+    "annealing_steps": null,
+    "reward_discount_coef": 0.9,
+    "buffer_size": null,
+    "start_random_action_prob": null
+  }
+}
