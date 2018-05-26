@@ -1,6 +1,5 @@
 from collections import namedtuple
-from time import time
-from typing import Tuple, Callable, Optional, List, Type
+from typing import Tuple, Callable, Optional, List, Type, Dict, Any, Union
 
 import keras
 import numpy as np
@@ -249,16 +248,129 @@ LearningProcessConfig = namedtuple("LearningProcessConfig", [
     "initial_temperature",
     "temp_coef",
     "min_temperature",
+    "framerate",
 ])
+
+
+class BaseConfig:
+    activation = ...  # type: str
+    name = ...  # type: Optional[str]
+
+    def __init__(self, activation: str, name: Optional[str]):
+        self.activation = activation.lower()
+        self.name = name
+
+        assert self.activation in ["linear", "relu", "tanh", "hard_sigmoid", "prelu"]
+
+
+class ConvConfig(BaseConfig):
+    filters = ...  # type: int
+
+    def __init__(self, filters: int, activation: Optional[str] = None, name: Optional[str] = None):
+        super().__init__(activation if activation is not None else "linear", name)
+        self.filters = filters
+
+
+class LSTMConfig(BaseConfig):
+    units = ...  # type: int
+    recurrent_activation = ...  # type: str
+
+    def __init__(self,
+                 units: int,
+                 activation: Optional[str] = None,
+                 recurrent_activation: Optional[str] = None,
+                 name: Optional[str] = None):
+        super().__init__(activation if activation is not None else "tanh", name)
+        self.units = units
+        self.recurrent_activation = recurrent_activation if recurrent_activation is not None else "hard_sigmoid"
+
+
+class DenseConfig(BaseConfig):
+    units = ...  # type: int
+
+    def __init__(self,
+                 units: int,
+                 activation: Optional[str] = None,
+                 name: Optional[str] = None):
+        super().__init__(activation if activation is not None else "linear", name)
+        self.units = units
+
+
+def config_to_dict(config: BaseConfig) -> Dict[str, Any]:
+    return vars(config)
+
+
+def dict_to_config(inp_dict: Dict[str, Any], t_config: Union[Type[ConvConfig], Type[LSTMConfig], Type[DenseConfig]]):
+    return t_config(**inp_dict)
+
+
+def config_to_layers(config: BaseConfig,
+                     additional_kwargs: Dict[str, Any],
+                     t_layer: Type[Layer]) -> List[Layer]:
+    kwargs = dict(vars(config).items())
+    kwargs.update(additional_kwargs)
+    if kwargs["activation"] == "prelu":
+        use_prelu = True
+        kwargs["activation"] = "linear"
+    else:
+        use_prelu = False
+
+    curr_layer = t_layer(**kwargs)
+    result = [curr_layer]
+    if use_prelu:
+        result.append(PReLU())
+
+    return result
+
+
+class NetworkConfig:
+    window_size = ...  # type: int
+    conv_configs = ...  # type: List[ConvConfig]
+    lstm_configs = ...  # type: List[LSTMConfig]
+    dense_configs = ...  # type: List[DenseConfig]
+    n_output_angles = ...  # type: int
+
+    def __init__(self,
+                 window_size: int,
+                 n_output_angles: int,
+                 conv_configs: List[ConvConfig],
+                 lstm_configs: List[LSTMConfig],
+                 dense_configs: List[DenseConfig]):
+        self.window_size = window_size
+        self.conv_configs = conv_configs
+        self.lstm_configs = lstm_configs
+        self.dense_configs = dense_configs
+        self.n_output_angles = n_output_angles
+
+
+def network_config_to_dict(network_config: NetworkConfig):
+    return {
+        "window_size": network_config.window_size,
+        "conv_configs": [config_to_dict(conv_config) for conv_config in network_config.conv_configs],
+        "lstm_configs": [config_to_dict(lstm_config) for lstm_config in network_config.lstm_configs],
+        "dense_configs": [config_to_dict(dense_config) for dense_config in network_config.dense_configs],
+        "n_output_angles": network_config.n_output_angles,
+    }
+
+
+def dict_to_network_config(inp_dict: Dict[str, Any]) -> NetworkConfig:
+    return NetworkConfig(
+        window_size=inp_dict["window_size"],
+        n_output_angles=inp_dict["n_output_angles"],
+        conv_configs=[dict_to_config(dict_conv_config, ConvConfig) for dict_conv_config in inp_dict["conv_configs"]],
+        lstm_configs=[dict_to_config(dict_lstm_config, LSTMConfig) for dict_lstm_config in inp_dict["lstm_configs"]],
+        dense_configs=[dict_to_config(dict_dense_config, DenseConfig) for dict_dense_config in
+                       inp_dict["dense_configs"]],
+    )
 
 
 class ActorCriticRecurrentLearner:
     _game_world = ...  # type: World
     _session = ...  # type: tf.Session
-    _n_output_angles = ...  # type: int
-    _time_between_actions_s = ...  # type: float
+    _network_config = ...  # type: NetworkConfig
     _process_config = ...  # type: LearningProcessConfig
 
+    _time_between_actions_s = ...  # type: float
     _player = ...  # type: Player
     _n_sensor_types = ...  # type: int
     _n_actions = ...  # type: int
@@ -297,22 +409,19 @@ class ActorCriticRecurrentLearner:
     def __init__(self,
                  world: World,
                  session: tf.Session,
-                 n_output_angles: int,
-                 time_between_actions_s: float,
-                 window_size: int,
+                 network_config: NetworkConfig,
                  process_config: LearningProcessConfig):
         self._game_world = world
         self._session = session
-        self._n_output_angles = n_output_angles
-        self._time_between_actions_s = time_between_actions_s
-        self._window_size = window_size
+        self._network_config = network_config
         self._process_config = process_config
 
+        self._time_between_actions_s = self._process_config.framerate
         self._player = self._game_world.player
         # noinspection PyTypeChecker
         self._n_sensor_types = len(SensedObject) + 1
         self._n_sensors = self._game_world.proximity_sensors_np.n_sensors
-        self._n_extra_inputs = self._window_size // 2
+        self._n_extra_inputs = self._network_config.window_size // 2
         self._n_sensor_inputs = self._n_sensors + self._n_extra_inputs * 2
         self._max_sensor_distance = self._game_world.proximity_sensors_np.max_distance
 
@@ -320,7 +429,7 @@ class ActorCriticRecurrentLearner:
         self._heat_state_shape = (1,)
         self._exploration_pressure_shape = (1,)
         self._previous_reward_shape = (1,)
-        self._previous_action_shape = (self._n_output_angles,)
+        self._previous_action_shape = (self._network_config.n_output_angles,)
         self._exploration_temp_state_shape = (1,)
 
         self._state_shapes = [
@@ -379,7 +488,7 @@ class ActorCriticRecurrentLearner:
         return np.array([[res]], dtype=np.float32)
 
     def _get_previous_action(self) -> np.ndarray:
-        result = np.zeros(shape=(1, self._n_output_angles), dtype=np.float32)
+        result = np.zeros(shape=(1, self._network_config.n_output_angles), dtype=np.float32)
         result[0, self._previous_action] = 1
         self._previous_action = None
         return result
@@ -412,34 +521,25 @@ class ActorCriticRecurrentLearner:
             ]
 
             conved_input = input_tensors[self._sensor_input_index]
-
             trainable = not decision_mode
+            layers = []
 
-            conv_layer_1 = Conv2D(
-                filters=16,
-                kernel_size=(1, self._window_size),
-                data_format="channels_last",
-                activation="relu",
-                name="conv1",
-                trainable=trainable
-            )
-            conv_output_1 = PReLU()(conv_layer_1(conved_input))
-            # conv_output_1 = conv_layer_1(conved_input)
+            x = conved_input
+            for conv_config in self._network_config.conv_configs:
+                additional_kwargs = {
+                    "kernel_size": (1, self._network_config.window_size),
+                    "data_format": "channels_last",
+                    "trainable": trainable,
+                }
 
-            conv_layer_2 = Conv2D(
-                filters=16,
-                kernel_size=(1, self._window_size),
-                data_format="channels_last",
-                activation="relu",
-                name="conv2",
-                trainable=trainable
-            )
-            conv_output_2 = PReLU()(conv_layer_2(conv_output_1))
-            # conv_output_2 = conv_layer_2(conv_output_1)
+                local_layers = config_to_layers(conv_config, additional_kwargs, Conv2D)
+                for local_layer in local_layers:
+                    x = local_layer(x)
+                    layers.append(local_layer)
 
-            _, _, n_pixels, n_filters = conv_output_2.shape
+            _, _, n_pixels, n_filters = x.shape
             flattened_conv = tf.reshape(
-                tensor=conv_output_2,
+                tensor=x,
                 shape=(-1, n_pixels * n_filters),
                 name="flattened_conv",
             )
@@ -457,56 +557,51 @@ class ActorCriticRecurrentLearner:
             n_units = int(n_units)
 
             if decision_mode:
-                pre_lstm_reshaped = tf.reshape(concatted, (1, 1, n_units), name="pre_lstm_reshaped")
+                x = tf.reshape(concatted, (1, 1, n_units), name="pre_lstm_reshaped")
                 stateful = True
-                return_sequences_after = False
+                return_sequences_after_last = False
             else:
-                pre_lstm_reshaped = tf.reshape(concatted, (1, -1, n_units), name="pre_lstm_reshaped")
+                x = tf.reshape(concatted, (1, -1, n_units), name="pre_lstm_reshaped")
                 stateful = False
-                return_sequences_after = True
+                return_sequences_after_last = True
 
-            lstm_layer_1 = LSTM(
-                units=n_units // 2,
-                stateful=stateful,
-                name="lstm_layer_1",
-                return_sequences=True,
-                trainable=trainable,
-            )
-            lstm_output_1 = lstm_layer_1(pre_lstm_reshaped)
+            for i, lstm_config in enumerate(self._network_config.lstm_configs):
+                return_sequences = (
+                    True if i < len(self._network_config.lstm_configs) - 1 else return_sequences_after_last
+                )
 
-            lstm_layer_2 = LSTM(
-                units=n_units // 2,
-                stateful=stateful,
-                name="lstm_layer_2",
-                return_sequences=return_sequences_after,
-                trainable=trainable,
-            )
-            lstm_output_2 = lstm_layer_2(lstm_output_1)
+                additional_kwargs = {
+                    "stateful": stateful,
+                    "return_sequences": return_sequences,
+                    "trainable": trainable,
+                }
+
+                local_layers = config_to_layers(lstm_config, additional_kwargs, LSTM)
+                for local_layer in local_layers:
+                    x = local_layer(x)
+                    layers.append(local_layer)
 
             if not decision_mode:
-                lstm_output_2 = tf.reshape(lstm_output_2, (-1, lstm_output_2.shape[2]))
+                x = tf.reshape(x, (-1, x.shape[2]))
 
-            dense_layer_1 = Dense(
-                units=n_units // 4,
-                activation="linear",
-                name="dense_layer_1"
-            )
-            dense_output_1 = PReLU()(dense_layer_1(lstm_output_2))
-
-            dense_layer_2 = Dense(
-                units=n_units // 4,
-                activation="linear",
-                name="dense_layer_2"
-            )
-            dense_output_2 = PReLU()(dense_layer_2(dense_output_1))
+            for dense_config in self._network_config.dense_configs:
+                additional_kwargs = {
+                    "trainable": trainable,
+                }
+                local_layers = config_to_layers(dense_config, additional_kwargs, Dense)
+                for local_layer in local_layers:
+                    x = local_layer(x)
+                    layers.append(local_layer)
 
             output_layer = Dense(
-                units=self._n_output_angles,
+                units=self._network_config.n_output_angles,
                 activation="linear",
                 name="output_layer",
                 trainable=trainable,
             )
-            output_angle_values = output_layer(dense_output_2)
+            output_angle_values = output_layer(x)
+            layers.append(output_layer)
+
             current_temp = input_tensors[self._exploration_temp_index]
             cooled = output_angle_values / current_temp
             output_angle_probabilities = tf.nn.softmax(cooled, name="output_angle_probabilites")
@@ -516,18 +611,8 @@ class ActorCriticRecurrentLearner:
                 name="value_layer",
                 trainable=trainable,
             )
-            output_value = value_output_layer(dense_output_2)
-
-            layers = [
-                conv_layer_1,
-                conv_layer_2,
-                lstm_layer_1,
-                lstm_layer_2,
-                dense_layer_1,
-                dense_layer_2,
-                output_layer,
-                value_output_layer,
-            ]
+            output_value = value_output_layer(x)
+            layers.append(value_output_layer)
 
             return input_tensors, layers, output_angle_probabilities, output_value
 
@@ -536,7 +621,9 @@ class ActorCriticRecurrentLearner:
             decision_layer.set_weights(train_layer.get_weights())
 
     def _get_angle(self, action_index: int) -> float:
-        return self._game_world.player.angle + np.linspace(-np.pi, np.pi, self._n_output_angles, False)[action_index]
+        return self._game_world.player.angle + np.linspace(
+            -np.pi, np.pi, self._network_config.n_output_angles, False
+        )[action_index]
 
     def initialize_a2c(self) -> None:
         tf.logging.info("Initializing A2C")
@@ -641,7 +728,7 @@ class ActorCriticRecurrentLearner:
                 feed_dict=dict(list(zip(self._decision_input_tensors, inputs)))
             )
             assert not np.any(np.isnan(decision_output))
-            new_angle_index = np.random.choice(np.arange(self._n_output_angles), p=decision_output[0])
+            new_angle_index = np.random.choice(np.arange(self._network_config.n_output_angles), p=decision_output[0])
 
             self._update_previous(new_angle_index, step_hook)
 
@@ -672,12 +759,12 @@ class ActorCriticRecurrentLearner:
 
                 inputs = self._get_input_list()
 
-                value, decision_output = self._session.run(
+                value, decision_probs = self._session.run(
                     [self._decision_value, self._decision_output],
                     feed_dict=dict(list(zip(self._decision_input_tensors, inputs)))
                 )
-                assert not np.any(np.isnan(decision_output))
-                new_angle_index = np.random.choice(np.arange(self._n_output_angles), p=decision_output[0])
+                assert not np.any(np.isnan(decision_probs))
+                new_angle_index = np.random.choice(np.arange(self._network_config.n_output_angles), p=decision_probs[0])
 
                 self._update_previous(new_angle_index, step_hook)
                 self._update_temperature()
@@ -700,7 +787,8 @@ class ActorCriticRecurrentLearner:
                     ]
 
                     all_rewards = np.array([exp.reward for exp in exps], dtype=np.float32)
-                    norm_rewards = (all_rewards - np.mean(all_rewards)) / np.std(all_rewards)
+                    std_rewards = np.std(all_rewards)
+                    norm_rewards = (all_rewards - np.mean(all_rewards)) / (std_rewards if std_rewards != 0 else 1)
 
                     current_cumul_reward = 0 if game_over else value
                     for i_exp in reversed(range(len(exps))):

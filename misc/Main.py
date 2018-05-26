@@ -43,10 +43,10 @@ def load_n_loop(learner: ActorCriticRecurrentLearner, load_path: str, n_iter: in
 
 
 def main():
-    learner = initialize_ac_learner(config_two())
+    learner = initialize_ac_learner(config_one())
     load_path = "gs://eneka-models/a2c_deeper_temp"
     n_iter = 200
-    load_n_loop(learner, load_path, n_iter, 0.05)
+    load_n_loop(learner, load_path, n_iter, 1.5)
 
 
 if __name__ == '__main__':

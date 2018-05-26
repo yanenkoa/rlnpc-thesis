@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 import numpy as np
 import tensorflow as tf
 
-from trainer.Configs import config_one
+from trainer.Configs import config_one, rl_config
 from trainer.GameObjects import World
 from trainer.RL import DeepQLearnerWithExperienceReplay, LearningProcessConfig, ActorCriticRecurrentLearner
 
@@ -35,38 +35,17 @@ def cloud_ml_training(world_config, path: str):
 
 
 def initialize_ac_learner(world_config) -> ActorCriticRecurrentLearner:
+    learn_config, net_config = rl_config()
+
     world = World(*world_config)
-    frames_in_second = 60
-    n_skipped_frames = 15
-    max_minutes = 5
-    framerate = 1. / frames_in_second
-    max_ep_length = max_minutes * 60 * frames_in_second // n_skipped_frames
-    update_frequency = max_ep_length // 5
-    config = LearningProcessConfig(
-        replay_size=None,
-        update_frequency=update_frequency,
-        reward_discount_coef=0.9,
-        start_random_action_prob=None,
-        end_random_action_prob=None,
-        annealing_steps=None,
-        n_training_episodes=5000,
-        pre_train_steps=None,
-        max_ep_length=max_ep_length,
-        buffer_size=None,
-        n_skipped_frames=n_skipped_frames,
-        target_network_update_frequency=1000,
-        initial_temperature=10,
-        temp_coef=0.00001,
-        min_temperature=0.5,
-    )
+
     learner = ActorCriticRecurrentLearner(
         world,
         tf.Session(),
-        8,
-        framerate,
-        7,
-        config
+        net_config,
+        learn_config
     )
+
     learner.initialize_a2c()
     return learner
 

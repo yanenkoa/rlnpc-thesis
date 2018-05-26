@@ -1,6 +1,9 @@
+from typing import Tuple
+
 import numpy as np
 
 from trainer.GameObjects import Player, RectangleWall, GoldChest, Portal, ProximitySensors, HeatSource
+from trainer.RL import NetworkConfig, ConvConfig, LSTMConfig, DenseConfig, LearningProcessConfig
 from trainer.Util import Vector2, RectangleAABB
 
 
@@ -107,3 +110,70 @@ def config_two():
         portal,
     )
     return width, height, player, walls, gold_chests, heat_sources, portal, proximity_sensors_np
+
+
+def rl_config() -> Tuple[LearningProcessConfig, NetworkConfig]:
+    frames_in_second = 60
+    n_skipped_frames = 15
+    max_minutes = 5
+    framerate = 1. / frames_in_second
+    max_ep_length = max_minutes * 60 * frames_in_second // n_skipped_frames
+    update_frequency = max_ep_length // 5
+    lp_config = LearningProcessConfig(
+        replay_size=None,
+        update_frequency=update_frequency,
+        reward_discount_coef=0.9,
+        start_random_action_prob=None,
+        end_random_action_prob=None,
+        annealing_steps=None,
+        n_training_episodes=5000,
+        pre_train_steps=None,
+        max_ep_length=max_ep_length,
+        buffer_size=None,
+        n_skipped_frames=n_skipped_frames,
+        target_network_update_frequency=1000,
+        initial_temperature=10,
+        temp_coef=0.00001,
+        min_temperature=0.5,
+        framerate=framerate,
+    )
+    net_conf = NetworkConfig(
+        window_size=7,
+        n_output_angles=8,
+        conv_configs=[
+            ConvConfig(
+                filters=16,
+                activation="prelu",
+                name="conv1",
+            ),
+            ConvConfig(
+                filters=16,
+                activation="prelu",
+                name="conv2",
+            ),
+        ],
+        lstm_configs=[
+            LSTMConfig(
+                units=437,
+                name="lstm_layer_1",
+            ),
+            LSTMConfig(
+                units=437,
+                name="lstm_layer_2",
+            ),
+        ],
+        dense_configs=[
+            DenseConfig(
+                units=218,
+                activation="prelu",
+                name="dense_layer_1",
+            ),
+            DenseConfig(
+                units=218,
+                activation="prelu",
+                name="dense_layer_2",
+            ),
+        ],
+    )
+
+    return lp_config, net_conf
