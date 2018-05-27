@@ -661,12 +661,13 @@ class ActorCriticRecurrentLearner:
         advantages = self._update_true_cumul_rewards - self._update_values_tensor
 
         n = tf.cast(tf.shape(self._train_output)[0], dtype=tf.float32)
-        policy_loss = -1 / n * tf.reduce_sum(advantages * tf.log(chosen_probs))
+        self._policy_loss = policy_loss = -1 / n * tf.reduce_sum(advantages * tf.log(chosen_probs))
 
-        value_loss = 1 / n * tf.reduce_sum(tf.square(self._update_true_cumul_rewards - self._train_value_output))
+        self._value_loss = value_loss = (
+                    1 / n * tf.reduce_sum(tf.square(self._update_true_cumul_rewards - self._train_value_output)))
 
         entropies = -tf.reduce_sum(self._train_output * tf.log(self._train_output), axis=1)
-        regularization_loss = -1 / n * tf.reduce_sum(entropies)
+        self._regularization_loss = regularization_loss = -1 / n * tf.reduce_sum(entropies)
 
         all_loss = policy_loss + value_loss + self._process_config.regularization_loss_coef * regularization_loss
 
@@ -810,7 +811,16 @@ class ActorCriticRecurrentLearner:
                     fd[self._update_values_tensor] = values
                     fd[self._update_true_cumul_rewards] = cumul_rewards
 
-                    self._session.run(self._update_op, fd)
+                    policy_loss, value_loss, reg_loss = self._session.run(
+                        [self._policy_loss, self._value_loss, self._regularization_loss, self._update_op],
+                        fd
+                    )
+
+                    tf.logging.debug(
+                        "policy loss: {policy_loss}, value loss: {value_loss}, regularization loss: {reg_loss}".format(
+                            policy_loss=policy_loss, value_loss=value_loss, reg_loss=reg_loss
+                        )
+                    )
 
                     if total_updates % self._process_config.target_network_update_frequency == 0:
                         self._copy_weights_from_train_to_decision()
