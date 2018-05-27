@@ -811,7 +811,7 @@ class ActorCriticRecurrentLearner:
                     fd[self._update_values_tensor] = values
                     fd[self._update_true_cumul_rewards] = cumul_rewards
 
-                    policy_loss, value_loss, reg_loss = self._session.run(
+                    policy_loss, value_loss, reg_loss, _ = self._session.run(
                         [self._policy_loss, self._value_loss, self._regularization_loss, self._update_op],
                         fd
                     )
