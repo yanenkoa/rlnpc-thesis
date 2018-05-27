@@ -140,7 +140,7 @@ def rl_config() -> Tuple[LearningProcessConfig, NetworkConfig]:
         min_temperature=0.5,
         framerate=framerate,
         regularization_loss_coef=1e-3,
-        learning_rate=0.001,
+        learning_rate=0.0005,
     )
     net_conf = NetworkConfig(
         window_size=7,
