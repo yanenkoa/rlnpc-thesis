@@ -3,9 +3,10 @@ from argparse import ArgumentParser
 import numpy as np
 import tensorflow as tf
 
-from trainer.Configs import config_one, rl_config
+from trainer.Configs import config_one, get_config
 from trainer.GameObjects import World
-from trainer.RL import DeepQLearnerWithExperienceReplay, LearningProcessConfig, ActorCriticRecurrentLearner
+from trainer.RL import DeepQLearnerWithExperienceReplay, LearningProcessConfig, ActorCriticRecurrentLearner, \
+    NetworkConfig
 
 
 def cloud_ml_training(world_config, path: str):
@@ -34,31 +35,26 @@ def cloud_ml_training(world_config, path: str):
     learner.train(path)
 
 
-def initialize_ac_learner(world_config) -> ActorCriticRecurrentLearner:
-    learn_config, net_config = rl_config()
-
+def initialize_ac_learner(world_config,
+                          process_config: LearningProcessConfig,
+                          network_config: NetworkConfig) -> ActorCriticRecurrentLearner:
     world = World(*world_config)
-
     learner = ActorCriticRecurrentLearner(
         world,
         tf.Session(),
-        net_config,
-        learn_config
+        network_config,
+        process_config
     )
 
     learner.initialize_a2c()
     return learner
 
 
-def ac_training(world_config, path: str):
+def ac_training(world_config, dump_path: str, process_config: LearningProcessConfig, network_config: NetworkConfig):
     tf.logging.set_verbosity(tf.logging.DEBUG)
-    tf.logging.info("Writing to {path}".format(path=path))
-
-    learner = initialize_ac_learner(world_config)
-
-    # render_world = RenderWorld(world)
-    # render_world.start_drawing()
-    learner.train(path)
+    tf.logging.info("Writing to {path}".format(path=dump_path))
+    learner = initialize_ac_learner(world_config, process_config, network_config)
+    learner.train(dump_path)
 
 
 def main():
@@ -66,10 +62,12 @@ def main():
 
     argparser = ArgumentParser()
     argparser.add_argument("--job-dir", default=None)
+    argparser.add_argument("--config-dir", default=None)
 
     args = argparser.parse_args()
 
-    ac_training(config_one(), args.job_dir)
+    process_config, network_config = get_config(args.config_dir)
+    ac_training(config_one(), args.job_dir, process_config, network_config)
 
 
 if __name__ == '__main__':
