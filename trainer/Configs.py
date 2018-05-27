@@ -1,6 +1,7 @@
 import json
 from pprint import pprint
 from typing import Tuple
+from tensorflow.python.lib.io import file_io
 
 import numpy as np
 
@@ -185,8 +186,10 @@ def rl_config() -> Tuple[LearningProcessConfig, NetworkConfig]:
 
 
 def get_config(path: str) -> Tuple[LearningProcessConfig, NetworkConfig]:
-    with open(path) as f:
+    with file_io.FileIO(path, mode="r") as f:
         json_config = json.load(f)
+
+    pprint(json_config)
 
     learning_process_config = LearningProcessConfig(**json_config["learning_process_config"])
     network_config = dict_to_network_config(json_config["network_config"])
@@ -205,7 +208,7 @@ def dump_config(lpc: LearningProcessConfig, nc: NetworkConfig, path: str) -> Non
     import pathlib
     pathlib.Path(path.rpartition("/")[0]).mkdir(parents=True, exist_ok=True)
 
-    with open(path, mode="w+") as f:
+    with file_io.FileIO(path, mode="w+") as f:
         json.dump(json_result, f, indent=2, separators=(',', ': '))
 
 

@@ -303,7 +303,7 @@ def config_to_dict(config: BaseConfig) -> Dict[str, Any]:
     return vars(config)
 
 
-def dict_to_config(inp_dict: Dict[str, Any], t_config: Union[Type[ConvConfig], Type[LSTMConfig], Type[DenseConfig]]):
+def dict_to_config(inp_dict: Dict[str, Any], t_config):
     return t_config(**inp_dict)
 
 
