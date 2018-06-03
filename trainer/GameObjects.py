@@ -652,6 +652,8 @@ class World:
     _player_visits = ...  # type: List[Tuple[float, Vector2]]
 
     _exploration_pressure = ...  # type: float
+    _last_ep_update = ...  # type: float
+    _update_ep_every_s = ...  # type: float
 
     _wall_collision_checker = ...  # type: WallsCollisionChecker
 
@@ -683,8 +685,8 @@ class World:
 
         self._proximity_sensors_np = proximity_sensors_np
 
-        self._remember_position_interval_s = 1
-        self._visit_reward_impact_decay_per_s = 0.92
+        self._remember_position_interval_s = 0.5
+        self._visit_reward_impact_decay_per_s = 0.99
         self._n_nearby_visit_points = 100
         self._visit_coef_ps = 1000.
 
@@ -693,6 +695,8 @@ class World:
         self._player_visits = []
 
         self._exploration_pressure = 0.
+        self._last_ep_update = 0.
+        self._update_ep_every_s = 0.5
 
         self._wall_collision_checker = WallsCollisionChecker(self._walls)
 
@@ -749,7 +753,7 @@ class World:
 
         self._player.apply_passive_reward_penalty(elapsed_time_s)
 
-        self._exploration_pressure = self._get_nearby_visits(elapsed_time_s)
+        self._update_exploration_pressure(elapsed_time_s)
 
     def _update_player_positions(self) -> None:
         if self._current_time_s - self._last_saved_position_time_s < self._remember_position_interval_s:
@@ -757,7 +761,12 @@ class World:
         self._last_saved_position_time_s = self._current_time_s
         self._player_visits.append((self._current_time_s, self._player.position))
 
-    def _get_nearby_visits(self, elapsed_time_s: float) -> float:
+    def _update_exploration_pressure(self, elapsed_time_s: float) -> None:
+        if self._current_time_s - self._last_ep_update < self._update_ep_every_s:
+            return
+
+        self._last_ep_update = self._current_time_s
+
         current_position = self._player.position
         relevant_visits = list(
             sorted(
@@ -787,7 +796,7 @@ class World:
             for time_diff, pos_diff in relevant_visits
         ) * elapsed_time_s / self._n_nearby_visit_points
         # print(reward_impact)
-        return reward_impact
+        self._exploration_pressure = reward_impact
 
     def update_world_and_player_and_get_reward(
             self,

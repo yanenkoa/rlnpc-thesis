@@ -64,11 +64,14 @@ def config_one():
     bottom_wall = RectangleWall(RectangleAABB(Vector2(0, -100), Vector2(width, 0)))
     walls.extend([left_wall, top_wall, right_wall, bottom_wall])
     gold_chests = [
-         GoldChest(10, Vector2(50, 50)),
-         GoldChest(6, Vector2(250, 50)),
-         GoldChest(2, Vector2(750, 50)),
-         GoldChest(1, Vector2(350, 450)),
-         GoldChest(4, Vector2(50, 850)),
+         GoldChest(35, Vector2(950, 50)),
+         GoldChest(25, Vector2(50, 500)),
+         GoldChest(30, Vector2(500, 950)),
+         GoldChest(50, Vector2(50, 50)),
+         GoldChest(30, Vector2(250, 50)),
+         GoldChest(10, Vector2(750, 50)),
+         GoldChest(5, Vector2(350, 450)),
+         GoldChest(20, Vector2(50, 850)),
     ]
     heat_sources = [
         HeatSource(10, Vector2(450, 450), walls),
@@ -185,6 +188,130 @@ def rl_config() -> Tuple[LearningProcessConfig, NetworkConfig]:
     return lp_config, net_conf
 
 
+def rl_config_two() -> Tuple[LearningProcessConfig, NetworkConfig]:
+    frames_in_second = 60
+    n_skipped_frames = 15
+    max_minutes = 5
+    framerate = 1. / frames_in_second
+    max_ep_length = max_minutes * 60 * frames_in_second // n_skipped_frames
+    update_frequency = max_ep_length // 5
+    lp_config = LearningProcessConfig(
+        replay_size=None,
+        update_frequency=update_frequency,
+        reward_discount_coef=0.9,
+        start_random_action_prob=None,
+        end_random_action_prob=None,
+        annealing_steps=None,
+        n_training_episodes=5000,
+        pre_train_steps=None,
+        max_ep_length=max_ep_length,
+        buffer_size=None,
+        n_skipped_frames=n_skipped_frames,
+        target_network_update_frequency=20,
+        initial_temperature=10,
+        temp_coef=0.00001,
+        min_temperature=0.5,
+        framerate=framerate,
+        regularization_loss_coef=1,
+        learning_rate=0.0001,
+    )
+    net_conf = NetworkConfig(
+        window_size=7,
+        n_output_angles=8,
+        conv_configs=[
+            ConvConfig(
+                filters=16,
+                activation="prelu",
+                name="conv1",
+            ),
+            ConvConfig(
+                filters=16,
+                activation="prelu",
+                name="conv2",
+            ),
+        ],
+        lstm_configs=[
+            LSTMConfig(
+                units=437,
+                name="lstm_layer_1",
+            ),
+            LSTMConfig(
+                units=437,
+                name="lstm_layer_2",
+            ),
+        ],
+        dense_configs=[
+            DenseConfig(
+                units=218,
+                activation="prelu",
+                name="dense_layer_1",
+            ),
+            DenseConfig(
+                units=218,
+                activation="prelu",
+                name="dense_layer_2",
+            ),
+        ],
+    )
+
+    return lp_config, net_conf
+
+
+def rl_config_shallower() -> Tuple[LearningProcessConfig, NetworkConfig]:
+    frames_in_second = 60
+    n_skipped_frames = 15
+    max_minutes = 5
+    framerate = 1. / frames_in_second
+    max_ep_length = max_minutes * 60 * frames_in_second // n_skipped_frames
+    update_frequency = max_ep_length // 5
+    lp_config = LearningProcessConfig(
+        replay_size=None,
+        update_frequency=update_frequency,
+        reward_discount_coef=0.9,
+        start_random_action_prob=None,
+        end_random_action_prob=None,
+        annealing_steps=None,
+        n_training_episodes=5000,
+        pre_train_steps=None,
+        max_ep_length=max_ep_length,
+        buffer_size=None,
+        n_skipped_frames=n_skipped_frames,
+        target_network_update_frequency=1000,
+        initial_temperature=10,
+        temp_coef=0.00001,
+        min_temperature=0.5,
+        framerate=framerate,
+        regularization_loss_coef=1e-1,
+        learning_rate=0.001,
+    )
+    net_conf = NetworkConfig(
+        window_size=7,
+        n_output_angles=8,
+        conv_configs=[
+            ConvConfig(
+                filters=16,
+                activation="prelu",
+                name="conv1",
+            ),
+        ],
+        lstm_configs=[
+            LSTMConfig(
+                units=437,
+                name="lstm_layer_1",
+            ),
+        ],
+        dense_configs=[
+            DenseConfig(
+                units=218,
+                activation="prelu",
+                name="dense_layer_1",
+            ),
+        ],
+    )
+
+    return lp_config, net_conf
+
+
 def get_config(path: str) -> Tuple[LearningProcessConfig, NetworkConfig]:
     with file_io.FileIO(path, mode="r") as f:
         json_config = json.load(f)
@@ -213,14 +340,15 @@ def dump_config(lpc: LearningProcessConfig, nc: NetworkConfig, path: str) -> Non
 
 
 def main():
-    config_funcs = [rl_config]
+    config_funcs = [rl_config, rl_config_shallower, rl_config_two]
     print("Choose a config to dump:")
-    print("0: rl_config")
+    print("0: rl_config\n1: rl_config_shallower\n2: rl_config_two")
 
     i_config = int(input())
     lpc, network_config = config_funcs[i_config]()
 
-    path = input("Enter config file path: ")
+    path = "gs://eneka-storage/configs/{}.json".format(config_funcs[i_config].__name__)
+    print("Writing to {}".format(path))
 
     dump_config(lpc, network_config, path)
 
