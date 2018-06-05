@@ -388,6 +388,7 @@ class ActorCriticRecurrentLearner:
     _previous_reward_shape = ...  # type: Tuple
     _previous_action_shape = ...  # type: Tuple
     _exploration_temp_state_shape = ...  # type: Tuple
+    _overall_gold_shape = ...  # type: Tuple[int]
     _state_shapes = ...  # type: List[Tuple]
     _state_names = ...  # type: List[str]
 
@@ -433,6 +434,7 @@ class ActorCriticRecurrentLearner:
         self._sensor_state_shape = (1, self._n_sensor_inputs, self._n_sensor_types)
         self._heat_state_shape = (1,)
         self._exploration_pressure_shape = (1,)
+        self._overall_gold_shape = (1,)
         self._previous_reward_shape = (1,)
         self._previous_action_shape = (self._network_config.n_output_angles,)
         self._exploration_temp_state_shape = (1,)
@@ -441,6 +443,7 @@ class ActorCriticRecurrentLearner:
             self._sensor_state_shape,
             self._heat_state_shape,
             self._exploration_pressure_shape,
+            self._overall_gold_shape,
             self._previous_reward_shape,
             self._previous_action_shape,
             self._exploration_temp_state_shape,
@@ -450,6 +453,7 @@ class ActorCriticRecurrentLearner:
             "sensor",
             "heat",
             "exploration_pressure",
+            "overall_gold",
             "previous_reward",
             "previous_action",
             "exploration_temp"
@@ -487,6 +491,9 @@ class ActorCriticRecurrentLearner:
         self._previous_exploration_pressure = None
         return np.array([[res]], dtype=np.float32)
 
+    def _get_gold_input(self) -> np.ndarray:
+        return np.array([[float(self._player.gold)]], dtype=np.float32)
+
     def _get_previous_reward(self) -> np.ndarray:
         res = float(self._previous_reward)
         self._previous_reward = None
@@ -506,6 +513,7 @@ class ActorCriticRecurrentLearner:
             self._get_sensor_input(),
             self._get_heat_input(),
             self._get_exploration_pressure_input(),
+            self._get_gold_input(),
             self._get_previous_reward(),
             self._get_previous_action(),
             self._get_exploration_temp(),
