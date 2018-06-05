@@ -806,7 +806,8 @@ class ActorCriticRecurrentLearner:
 
                     all_rewards = np.array([exp.reward for exp in exps], dtype=np.float32)
                     # norm_rewards = (all_rewards - np.mean(all_rewards)) / (std_rewards if std_rewards != 0 else 1)
-                    std_norm_rewards = (all_rewards - avg_reward) / (std_rewards if std_rewards != 0 else 1)
+                    # std_norm_rewards = (all_rewards - avg_reward) / (std_rewards if std_rewards != 0 else 1)
+                    std_norm_rewards = all_rewards - avg_reward
 
                     current_cumul_reward = 0 if game_over else value
                     for i_exp in reversed(range(len(exps))):
