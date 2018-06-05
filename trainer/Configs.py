@@ -96,7 +96,8 @@ def config_two():
     walls = [
         RectangleWall(RectangleAABB(Vector2(0, 0), Vector2(400, 400))),
         RectangleWall(RectangleAABB(Vector2(600, 0), Vector2(1000, 400))),
-        RectangleWall(RectangleAABB(Vector2(0, 600), Vector2(1000, 650))),
+        RectangleWall(RectangleAABB(Vector2(0, 600), Vector2(800, 650))),
+        RectangleWall(RectangleAABB(Vector2(750, 650), Vector2(800, 1000))),
     ]
     left_wall = RectangleWall(RectangleAABB(Vector2(-100, 0), Vector2(0, height)))
     top_wall = RectangleWall(RectangleAABB(Vector2(0, height), Vector2(width, height + 100)))
@@ -104,10 +105,10 @@ def config_two():
     bottom_wall = RectangleWall(RectangleAABB(Vector2(0, -100), Vector2(width, 0)))
     walls.extend([left_wall, top_wall, right_wall, bottom_wall])
     gold_chests = [
-        GoldChest(50, Vector2(100, height / 2)),
+        GoldChest(250, Vector2(100, height / 2)),
     ]
     heat_sources = []
-    portal = Portal(Vector2(800, 500))
+    portal = Portal(Vector2(900, 900))
     proximity_sensors_np = ProximitySensors(
         player,
         np.linspace(-np.pi, np.pi, 60, False),
@@ -469,13 +470,13 @@ def rl_config_even_lower_lr_clipnorm() -> Tuple[LearningProcessConfig, NetworkCo
     return lp_config, net_conf
 
 
-def rl_config_even_lower_lr_clipnorm() -> Tuple[LearningProcessConfig, NetworkConfig]:
+def rl_config_alt_3() -> Tuple[LearningProcessConfig, NetworkConfig]:
     frames_in_second = 60
     n_skipped_frames = 15
-    max_minutes = 5
+    max_minutes = 10
     framerate = 1. / frames_in_second
     max_ep_length = max_minutes * 60 * frames_in_second // n_skipped_frames
-    update_frequency = max_ep_length // 5
+    update_frequency = max_ep_length * 2
     lp_config = LearningProcessConfig(
         replay_size=None,
         update_frequency=update_frequency,
@@ -493,9 +494,9 @@ def rl_config_even_lower_lr_clipnorm() -> Tuple[LearningProcessConfig, NetworkCo
         temp_coef=0.00001,
         min_temperature=0.1,
         framerate=framerate,
-        regularization_loss_coef=1,
-        learning_rate=0.00000001,
-        clip_norm=1
+        regularization_loss_coef=1e-1,
+        learning_rate=0.0001,
+        clip_norm=200
     )
     net_conf = NetworkConfig(
         window_size=7,
@@ -514,96 +515,19 @@ def rl_config_even_lower_lr_clipnorm() -> Tuple[LearningProcessConfig, NetworkCo
         ],
         lstm_configs=[
             LSTMConfig(
-                units=437,
+                units=218,
                 name="lstm_layer_1",
             ),
             LSTMConfig(
-                units=437,
+                units=218,
+                name="lstm_layer_2",
+            ),
+            LSTMConfig(
+                units=218,
                 name="lstm_layer_2",
             ),
         ],
-        dense_configs=[
-            DenseConfig(
-                units=218,
-                activation="prelu",
-                name="dense_layer_1",
-            ),
-            DenseConfig(
-                units=218,
-                activation="prelu",
-                name="dense_layer_2",
-            ),
-        ],
-    )
-
-    return lp_config, net_conf
-
-
-def rl_config_even_lower_() -> Tuple[LearningProcessConfig, NetworkConfig]:
-    frames_in_second = 60
-    n_skipped_frames = 15
-    max_minutes = 5
-    framerate = 1. / frames_in_second
-    max_ep_length = max_minutes * 60 * frames_in_second // n_skipped_frames
-    update_frequency = max_ep_length // 5
-    lp_config = LearningProcessConfig(
-        replay_size=None,
-        update_frequency=update_frequency,
-        reward_discount_coef=0.9,
-        start_random_action_prob=None,
-        end_random_action_prob=None,
-        annealing_steps=None,
-        n_training_episodes=5000,
-        pre_train_steps=None,
-        max_ep_length=max_ep_length,
-        buffer_size=None,
-        n_skipped_frames=n_skipped_frames,
-        target_network_update_frequency=20,
-        initial_temperature=10,
-        temp_coef=0.00001,
-        min_temperature=0.1,
-        framerate=framerate,
-        regularization_loss_coef=1,
-        learning_rate=0.00000001,
-        clip_norm=1
-    )
-    net_conf = NetworkConfig(
-        window_size=7,
-        n_output_angles=8,
-        conv_configs=[
-            ConvConfig(
-                filters=16,
-                activation="prelu",
-                name="conv1",
-            ),
-            ConvConfig(
-                filters=16,
-                activation="prelu",
-                name="conv2",
-            ),
-        ],
-        lstm_configs=[
-            LSTMConfig(
-                units=437,
-                name="lstm_layer_1",
-            ),
-            LSTMConfig(
-                units=437,
-                name="lstm_layer_2",
-            ),
-        ],
-        dense_configs=[
-            DenseConfig(
-                units=218,
-                activation="prelu",
-                name="dense_layer_1",
-            ),
-            DenseConfig(
-                units=218,
-                activation="prelu",
-                name="dense_layer_2",
-            ),
-        ],
+        dense_configs=[],
     )
 
     return lp_config, net_conf
@@ -694,7 +618,7 @@ def dump_config(lpc: LearningProcessConfig, nc: NetworkConfig, path: str) -> Non
 
 def main():
     config_funcs = [rl_config, rl_config_shallower, rl_config_two, rl_config_larger_lr_lower_clipnorm,
-                    rl_config_low_lr_low_clipnorm, rl_config_even_lower_lr_clipnorm]
+                    rl_config_low_lr_low_clipnorm, rl_config_even_lower_lr_clipnorm, rl_config_alt_3]
     print("Choose a config to dump:")
     for i, config_func in enumerate(config_funcs):
         print("{}: {}".format(i, config_func.__name__))
