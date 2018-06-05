@@ -64,14 +64,14 @@ def config_one():
     bottom_wall = RectangleWall(RectangleAABB(Vector2(0, -100), Vector2(width, 0)))
     walls.extend([left_wall, top_wall, right_wall, bottom_wall])
     gold_chests = [
-         GoldChest(35, Vector2(950, 50)),
-         GoldChest(25, Vector2(50, 500)),
-         GoldChest(30, Vector2(500, 950)),
-         GoldChest(50, Vector2(50, 50)),
-         GoldChest(30, Vector2(250, 50)),
-         GoldChest(10, Vector2(750, 50)),
-         GoldChest(5, Vector2(350, 450)),
-         GoldChest(20, Vector2(50, 850)),
+         GoldChest(350, Vector2(950, 50)),
+         GoldChest(250, Vector2(50, 500)),
+         GoldChest(300, Vector2(500, 950)),
+         GoldChest(500, Vector2(50, 50)),
+         GoldChest(300, Vector2(250, 50)),
+         GoldChest(100, Vector2(750, 50)),
+         GoldChest(50, Vector2(350, 450)),
+         GoldChest(200, Vector2(50, 850)),
     ]
     heat_sources = [
         HeatSource(10, Vector2(450, 450), walls),
@@ -147,6 +147,7 @@ def rl_config() -> Tuple[LearningProcessConfig, NetworkConfig]:
         regularization_loss_coef=1e-3,
         learning_rate=0.0005,
         clip_norm=1e8,
+        reset_reward_every=5000 * max_ep_length * 2,
     )
     net_conf = NetworkConfig(
         window_size=7,
@@ -217,6 +218,7 @@ def rl_config_two() -> Tuple[LearningProcessConfig, NetworkConfig]:
         regularization_loss_coef=1,
         learning_rate=0.0001,
         clip_norm=1e8,
+        reset_reward_every=5000 * max_ep_length * 2,
     )
     net_conf = NetworkConfig(
         window_size=7,
@@ -286,7 +288,8 @@ def rl_config_larger_lr_lower_clipnorm() -> Tuple[LearningProcessConfig, Network
         framerate=framerate,
         regularization_loss_coef=1,
         learning_rate=0.001,
-        clip_norm=40
+        clip_norm=40,
+        reset_reward_every=5000 * max_ep_length * 2,
     )
     net_conf = NetworkConfig(
         window_size=7,
@@ -356,7 +359,8 @@ def rl_config_low_lr_low_clipnorm() -> Tuple[LearningProcessConfig, NetworkConfi
         framerate=framerate,
         regularization_loss_coef=1,
         learning_rate=0.000001,
-        clip_norm=5
+        clip_norm=5,
+        reset_reward_every=5000 * max_ep_length * 2,
     )
     net_conf = NetworkConfig(
         window_size=7,
@@ -426,7 +430,8 @@ def rl_config_even_lower_lr_clipnorm() -> Tuple[LearningProcessConfig, NetworkCo
         framerate=framerate,
         regularization_loss_coef=1,
         learning_rate=0.00000001,
-        clip_norm=1
+        clip_norm=1,
+        reset_reward_every=5000 * max_ep_length * 2,
     )
     net_conf = NetworkConfig(
         window_size=7,
@@ -496,7 +501,8 @@ def rl_config_alt_3() -> Tuple[LearningProcessConfig, NetworkConfig]:
         framerate=framerate,
         regularization_loss_coef=1e-1,
         learning_rate=0.0001,
-        clip_norm=200
+        clip_norm=200,
+        reset_reward_every=max_ep_length * 10,
     )
     net_conf = NetworkConfig(
         window_size=7,
@@ -560,6 +566,7 @@ def rl_config_shallower() -> Tuple[LearningProcessConfig, NetworkConfig]:
         regularization_loss_coef=1e-1,
         learning_rate=0.001,
         clip_norm=1e8,
+        reset_reward_every=5000 * max_ep_length * 2,
     )
     net_conf = NetworkConfig(
         window_size=7,

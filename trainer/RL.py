@@ -252,7 +252,8 @@ LearningProcessConfig = namedtuple("LearningProcessConfig", [
     "framerate",
     "regularization_loss_coef",
     "learning_rate",
-    "clip_norm"
+    "clip_norm",
+    "reset_reward_every"
 ])
 
 
@@ -752,6 +753,7 @@ class ActorCriticRecurrentLearner:
         self._current_exploration_temperature = float(self._process_config.initial_temperature)
 
         avg_reward = 0
+        resetted_avg_reward_step = 0
         std_rewards = 0
 
         reward_sums = []
@@ -766,6 +768,11 @@ class ActorCriticRecurrentLearner:
                 total_steps += 1
                 i_step += 1
 
+                if total_steps - resetted_avg_reward_step > self._process_config.reset_reward_every:
+                    resetted_avg_reward_step = int(total_steps)
+                    avg_reward = 0
+                    std_rewards = 0
+
                 inputs = self._get_input_list()
 
                 value, decision_probs = self._session.run(
@@ -778,12 +785,13 @@ class ActorCriticRecurrentLearner:
                 self._update_previous(new_angle_index, step_hook)
                 self._update_temperature()
 
-                new_avg_reward = ((total_steps - 1) * avg_reward + self._previous_reward) / total_steps
+                n_steps = total_steps - resetted_avg_reward_step
+                new_avg_reward = ((n_steps - 1) * avg_reward + self._previous_reward) / n_steps
                 std_rewards = (
                     (
-                        (total_steps - 1) * (std_rewards + avg_reward ** 2)
+                        (n_steps - 1) * (std_rewards + avg_reward ** 2)
                         + self._previous_reward ** 2
-                    ) / total_steps
+                    ) / n_steps
                     - new_avg_reward ** 2
                 )
                 avg_reward = new_avg_reward

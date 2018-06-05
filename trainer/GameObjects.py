@@ -62,7 +62,7 @@ class Player:
     height = 15.0  # type: float
 
     _reward_lost_heat_coef_ps = 1.  # type: float
-    _portal_coef = 1.  # type: float
+    _portal_coef = 2.  # type: float
     _portal_reward_collected = False  # type: bool
 
     _init_angle = ...  # type: float
@@ -103,7 +103,7 @@ class Player:
     def add_portal_reward(self) -> None:
         if not self._portal_reward_collected:
             self._portal_reward_collected = True
-            self._reward += self._portal_coef * self._reward_sum
+            self._reward += self._portal_coef * self._gold
 
     def get_rectangle(self) -> RectangleAABB:
         return make_rectangle(self._position, self.width, self.height)
@@ -124,6 +124,7 @@ class Player:
     def reset(self) -> None:
         self._angle = self._init_angle
         self._position = Vector2(self._init_position.x, self._init_position.y)
+        self._portal_reward_collected = False
         self._gold = 0
         self._heat = 0.
         self._reward = 0.
