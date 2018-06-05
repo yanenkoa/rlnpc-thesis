@@ -253,7 +253,7 @@ class GoldChest:
 
 
 class HeatSource:
-    _coef = 1  # type: float
+    _coef = 10  # type: float
 
     _heat = ...  # type: float
     _location = ...  # type: Vector2
@@ -277,7 +277,7 @@ class HeatSource:
         if distance2 <= self._radius ** 2:
             return self._coef * self._heat
         else:
-            return self._coef * self._heat / distance2 ** (1 / 2)
+            return self._coef * self._heat / np.sqrt(distance2)
 
     @property
     def location(self):
