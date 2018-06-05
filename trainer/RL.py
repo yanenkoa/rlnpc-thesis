@@ -682,7 +682,7 @@ class ActorCriticRecurrentLearner:
 
         self._session.run(tf.global_variables_initializer())
 
-        self._saver = tf.train.Saver()
+        self._saver = tf.train.Saver(max_to_keep=500)
 
     def load_model(self, path: str, step: int):
         tf.logging.info("Loading model...")
