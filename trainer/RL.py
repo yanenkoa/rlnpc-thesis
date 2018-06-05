@@ -777,7 +777,7 @@ class ActorCriticRecurrentLearner:
                 i_step += 1
 
                 if total_steps - resetted_avg_reward_step > self._process_config.reset_reward_every:
-                    resetted_avg_reward_step = int(total_steps)
+                    resetted_avg_reward_step = int(total_steps - 1)
                     avg_reward = 0
                     std_rewards = 0
 
