@@ -795,9 +795,9 @@ class ActorCriticRecurrentLearner:
 
                 n_steps = total_steps - resetted_avg_reward_step
                 new_avg_reward = ((n_steps - 1) * avg_reward + self._previous_reward) / n_steps
-                std_rewards = (
+                std_rewards = np.sqrt(
                     (
-                        (n_steps - 1) * (std_rewards + avg_reward ** 2)
+                        (n_steps - 1) * (std_rewards ** 2 + avg_reward ** 2)
                         + self._previous_reward ** 2
                     ) / n_steps
                     - new_avg_reward ** 2
@@ -821,6 +821,7 @@ class ActorCriticRecurrentLearner:
                     ]
 
                     all_rewards = np.array([exp.reward for exp in exps], dtype=np.float32)
+                    tf.logging.info(all_rewards)
                     # norm_rewards = (all_rewards - np.mean(all_rewards)) / (std_rewards if std_rewards != 0 else 1)
                     # std_norm_rewards = (all_rewards - avg_reward) / (std_rewards if std_rewards != 0 else 1)
                     std_norm_rewards = all_rewards - avg_reward
