@@ -829,7 +829,6 @@ class ActorCriticRecurrentLearner:
                         [self._policy_loss, self._value_loss, self._regularization_loss, self._global_norm, self._update_op],
                         fd
                     )
-
                     tf.logging.debug(
                         "policy loss: {policy_loss}, value loss: {value_loss}, regularization loss: {reg_loss}, "
                         "global norm: {global_norm}, average reward: {avg_reward}, reward std: {std_rewards}".format(
