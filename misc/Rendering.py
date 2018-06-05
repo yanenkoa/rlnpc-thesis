@@ -190,6 +190,9 @@ class RenderWorld:
         if not self._started:
             self._started = True
             self._canvas.pack()
+            self._redraw()
+            self._master.update_idletasks()
+            self._master.update()
 
     def _redraw(self) -> None:
         self._canvas.coords(self._player_fig, *self._get_player_fig_coords())
