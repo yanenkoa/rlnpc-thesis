@@ -64,14 +64,14 @@ def config_one():
     bottom_wall = RectangleWall(RectangleAABB(Vector2(0, -100), Vector2(width, 0)))
     walls.extend([left_wall, top_wall, right_wall, bottom_wall])
     gold_chests = [
-         GoldChest(350, Vector2(950, 50)),
-         GoldChest(250, Vector2(50, 500)),
-         GoldChest(300, Vector2(500, 950)),
-         GoldChest(500, Vector2(50, 50)),
-         GoldChest(300, Vector2(250, 50)),
-         GoldChest(100, Vector2(750, 50)),
-         GoldChest(50, Vector2(350, 450)),
-         GoldChest(200, Vector2(50, 850)),
+         GoldChest(85, Vector2(950, 50)),
+         GoldChest(60, Vector2(50, 500)),
+         GoldChest(75, Vector2(500, 950)),
+         GoldChest(125, Vector2(50, 50)),
+         GoldChest(75, Vector2(250, 50)),
+         GoldChest(25, Vector2(750, 50)),
+         GoldChest(12, Vector2(350, 450)),
+         GoldChest(50, Vector2(50, 850)),
     ]
     heat_sources = [
         HeatSource(10, Vector2(450, 450), walls),
