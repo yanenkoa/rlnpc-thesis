@@ -1,4 +1,3 @@
-import enum
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from enum import Enum
@@ -63,7 +62,8 @@ class Player:
     height = 15.0  # type: float
 
     _reward_lost_heat_coef_ps = 1.  # type: float
-    _portal_reward = 10.  # type: float
+    _portal_coef = 1.  # type: float
+    _portal_reward_collected = False  # type: bool
 
     _init_angle = ...  # type: float
     _init_position = ...  # type: Vector2
@@ -101,7 +101,9 @@ class Player:
         self._gold += gold
 
     def add_portal_reward(self) -> None:
-        self._reward += self._portal_reward
+        if not self._portal_reward_collected:
+            self._portal_reward_collected = True
+            self._reward += self._portal_coef * self._reward_sum
 
     def get_rectangle(self) -> RectangleAABB:
         return make_rectangle(self._position, self.width, self.height)

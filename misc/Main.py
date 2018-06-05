@@ -52,11 +52,13 @@ def simulate_keyboard(world_config):
 
 
 def main():
-    lp_config, net_config = get_config("gs://eneka-storage/configs/rl_config.json")
+    tf.logging.set_verbosity(tf.logging.DEBUG)
+
+    lp_config, net_config = get_config("gs://eneka-storage/configs/rl_config_even_lower_lr_clipnorm.json")
     learner = initialize_ac_learner(config_one(), lp_config, net_config)
-    load_path = "gs://eneka-storage/a2c_changed_ep_2"
-    n_iter = 300
-    load_n_loop(learner, load_path, n_iter, 0.72)
+    load_path = "gs://eneka-storage/a2c_global_avg_std_3"
+    n_iter = 400
+    load_n_loop(learner, load_path, n_iter, 0.1)
     # simulate_keyboard(config_one())
 
 

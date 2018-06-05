@@ -252,6 +252,7 @@ LearningProcessConfig = namedtuple("LearningProcessConfig", [
     "framerate",
     "regularization_loss_coef",
     "learning_rate",
+    "clip_norm"
 ])
 
 
@@ -674,7 +675,8 @@ class ActorCriticRecurrentLearner:
         optimizer = tf.train.AdamOptimizer(learning_rate=self._process_config.learning_rate)
 
         self._vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, "train")
-        self._gradients = tf.gradients(all_loss, self._vars)
+        grads = tf.gradients(all_loss, self._vars)
+        self._gradients, self._global_norm = tf.clip_by_global_norm(grads, self._process_config.clip_norm)
 
         self._update_op = optimizer.apply_gradients(zip(self._gradients, self._vars))
 
@@ -749,6 +751,9 @@ class ActorCriticRecurrentLearner:
         gamma = self._process_config.reward_discount_coef
         self._current_exploration_temperature = float(self._process_config.initial_temperature)
 
+        avg_reward = 0
+        std_rewards = 0
+
         reward_sums = []
 
         for i_episode in range(self._process_config.n_training_episodes):
@@ -773,6 +778,15 @@ class ActorCriticRecurrentLearner:
                 self._update_previous(new_angle_index, step_hook)
                 self._update_temperature()
 
+                new_avg_reward = ((total_steps - 1) * avg_reward + self._previous_reward) / total_steps
+                std_rewards = (
+                    (
+                        (total_steps - 1) * (std_rewards + avg_reward ** 2)
+                        + self._previous_reward ** 2
+                    ) / total_steps
+                    - new_avg_reward ** 2
+                )
+                avg_reward = new_avg_reward
                 reward_sums.append(self._previous_reward)
 
                 exps.append(Exp(new_angle_index, value, self._previous_reward, inputs))
@@ -791,12 +805,12 @@ class ActorCriticRecurrentLearner:
                     ]
 
                     all_rewards = np.array([exp.reward for exp in exps], dtype=np.float32)
-                    std_rewards = np.std(all_rewards)
-                    norm_rewards = (all_rewards - np.mean(all_rewards)) / (std_rewards if std_rewards != 0 else 1)
+                    # norm_rewards = (all_rewards - np.mean(all_rewards)) / (std_rewards if std_rewards != 0 else 1)
+                    std_norm_rewards = (all_rewards - avg_reward) / (std_rewards if std_rewards != 0 else 1)
 
                     current_cumul_reward = 0 if game_over else value
                     for i_exp in reversed(range(len(exps))):
-                        cumul_rewards[i_exp] = norm_rewards[i_exp] + gamma * current_cumul_reward
+                        cumul_rewards[i_exp] = std_norm_rewards[i_exp] + gamma * current_cumul_reward
                         current_cumul_reward = cumul_rewards[i_exp]
 
                         chosen_actions[i_exp] = exps[i_exp].chosen_action
@@ -811,14 +825,16 @@ class ActorCriticRecurrentLearner:
                     fd[self._update_values_tensor] = values
                     fd[self._update_true_cumul_rewards] = cumul_rewards
 
-                    policy_loss, value_loss, reg_loss, _ = self._session.run(
-                        [self._policy_loss, self._value_loss, self._regularization_loss, self._update_op],
+                    policy_loss, value_loss, reg_loss, global_norm, _ = self._session.run(
+                        [self._policy_loss, self._value_loss, self._regularization_loss, self._global_norm, self._update_op],
                         fd
                     )
 
                     tf.logging.debug(
-                        "policy loss: {policy_loss}, value loss: {value_loss}, regularization loss: {reg_loss}".format(
-                            policy_loss=policy_loss, value_loss=value_loss, reg_loss=reg_loss
+                        "policy loss: {policy_loss}, value loss: {value_loss}, regularization loss: {reg_loss}, "
+                        "global norm: {global_norm}, average reward: {avg_reward}, reward std: {std_rewards}".format(
+                            policy_loss=policy_loss, value_loss=value_loss, reg_loss=reg_loss, global_norm=global_norm,
+                            avg_reward=avg_reward, std_rewards=std_rewards
                         )
                     )
 
