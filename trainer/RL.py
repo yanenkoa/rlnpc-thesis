@@ -251,6 +251,7 @@ LearningProcessConfig = namedtuple("LearningProcessConfig", [
     "min_temperature",
     "framerate",
     "regularization_loss_coef",
+    "value_loss_coef",
     "learning_rate",
     "clip_norm",
     "reset_reward_every"
@@ -679,7 +680,11 @@ class ActorCriticRecurrentLearner:
         entropies = -tf.reduce_sum(self._train_output * tf.log(self._train_output), axis=1)
         self._regularization_loss = regularization_loss = -1 / n * tf.reduce_sum(entropies)
 
-        all_loss = policy_loss + value_loss + self._process_config.regularization_loss_coef * regularization_loss
+        all_loss = (
+                policy_loss
+                + self._process_config.value_loss_coef * value_loss
+                + self._process_config.regularization_loss_coef * regularization_loss
+        )
 
         optimizer = tf.train.AdamOptimizer(learning_rate=self._process_config.learning_rate)
 
@@ -821,7 +826,6 @@ class ActorCriticRecurrentLearner:
                     ]
 
                     all_rewards = np.array([exp.reward for exp in exps], dtype=np.float32)
-                    tf.logging.info(all_rewards)
                     # norm_rewards = (all_rewards - np.mean(all_rewards)) / (std_rewards if std_rewards != 0 else 1)
                     # std_norm_rewards = (all_rewards - avg_reward) / (std_rewards if std_rewards != 0 else 1)
                     std_norm_rewards = all_rewards - avg_reward
