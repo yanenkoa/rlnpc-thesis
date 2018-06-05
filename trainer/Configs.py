@@ -74,7 +74,9 @@ def config_one():
          GoldChest(50, Vector2(50, 850)),
     ]
     heat_sources = [
-        HeatSource(10, Vector2(450, 450), walls),
+        HeatSource(100, Vector2(230, 650), walls),
+        HeatSource(100, Vector2(975, 975), walls),
+        HeatSource(50, Vector2(790, 390), walls),
     ]
     portal = Portal(Vector2(800, 750))
 
