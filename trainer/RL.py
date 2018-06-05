@@ -672,12 +672,12 @@ class ActorCriticRecurrentLearner:
         advantages = self._update_true_cumul_rewards - self._update_values_tensor
 
         n = tf.cast(tf.shape(self._train_output)[0], dtype=tf.float32)
-        self._policy_loss = policy_loss = -1 / n * tf.reduce_sum(advantages * tf.log(chosen_probs))
+        self._policy_loss = policy_loss = -1 / n * tf.reduce_sum(advantages * tf.log(chosen_probs + 1e-10))
 
         self._value_loss = value_loss = (
                     1 / n * tf.reduce_sum(tf.square(self._update_true_cumul_rewards - self._train_value_output)))
 
-        entropies = -tf.reduce_sum(self._train_output * tf.log(self._train_output), axis=1)
+        entropies = -tf.reduce_sum(self._train_output * tf.log(self._train_output + 1e-10), axis=1)
         self._regularization_loss = regularization_loss = -1 / n * tf.reduce_sum(entropies)
 
         all_loss = (
@@ -763,6 +763,11 @@ class ActorCriticRecurrentLearner:
         total_updates = 0
         t_max = self._process_config.update_frequency
         gamma = self._process_config.reward_discount_coef
+        random_action_prob = self._process_config.start_random_action_prob
+        step_drop = (
+                (self._process_config.start_random_action_prob - self._process_config.end_random_action_prob)
+                / self._process_config.annealing_steps
+        )
         self._current_exploration_temperature = float(self._process_config.initial_temperature)
 
         avg_reward = 0
@@ -793,7 +798,16 @@ class ActorCriticRecurrentLearner:
                     feed_dict=dict(list(zip(self._decision_input_tensors, inputs)))
                 )
                 assert not np.any(np.isnan(decision_probs))
-                new_angle_index = np.random.choice(np.arange(self._network_config.n_output_angles), p=decision_probs[0])
+                if np.random.rand(1) < random_action_prob:
+                    new_angle_index = np.random.randint(0, self._network_config.n_output_angles)
+                else:
+                    new_angle_index = np.random.choice(
+                        np.arange(self._network_config.n_output_angles),
+                        p=decision_probs[0]
+                    )
+
+                if random_action_prob > self._process_config.end_random_action_prob:
+                    random_action_prob -= step_drop
 
                 self._update_previous(new_angle_index, step_hook)
                 self._update_temperature()
@@ -870,10 +884,12 @@ class ActorCriticRecurrentLearner:
 
             if i_episode % 10 == 0 and i_episode != 0:
                 tf.logging.info(
-                    "Total steps: {total_steps}, Mean reward sum: {mean_reward_sum}, Temperature: {temp}".format(
+                    "Total steps: {total_steps}, Mean reward sum: {mean_reward_sum}, Temperature: {temp}, "
+                    "eps: {eps}".format(
                         total_steps=total_steps,
                         mean_reward_sum=np.mean(reward_sums[-10:]),
                         temp=self._current_exploration_temperature,
+                        eps=random_action_prob
                     )
                 )
                 reward_sums.clear()
