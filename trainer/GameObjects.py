@@ -688,10 +688,10 @@ class World:
 
         self._proximity_sensors_np = proximity_sensors_np
 
-        self._remember_position_interval_s = 0.5
-        self._visit_reward_impact_decay_per_s = 0.99
+        self._remember_position_interval_s = 0.2
+        self._visit_reward_impact_decay_per_s = 0.987
         self._n_nearby_visit_points = 100
-        self._visit_coef_ps = 1000.
+        self._visit_coef_ps = 3000.
 
         self._current_time_s = 0.
         self._last_saved_position_time_s = 0.
@@ -699,7 +699,7 @@ class World:
 
         self._exploration_pressure = 0.
         self._last_ep_update = 0.
-        self._update_ep_every_s = 0.5
+        self._update_ep_every_s = 0.2
 
         self._wall_collision_checker = WallsCollisionChecker(self._walls)
 
