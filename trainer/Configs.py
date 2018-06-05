@@ -481,7 +481,7 @@ def rl_config_alt_3() -> Tuple[LearningProcessConfig, NetworkConfig]:
     max_minutes = 10
     framerate = 1. / frames_in_second
     max_ep_length = max_minutes * 60 * frames_in_second // n_skipped_frames
-    update_frequency = max_ep_length * 2
+    update_frequency = max_ep_length
     lp_config = LearningProcessConfig(
         replay_size=None,
         update_frequency=update_frequency,
@@ -530,7 +530,7 @@ def rl_config_alt_3() -> Tuple[LearningProcessConfig, NetworkConfig]:
             ),
             LSTMConfig(
                 units=218,
-                name="lstm_layer_2",
+                name="lstm_layer_3",
             ),
         ],
         dense_configs=[],
