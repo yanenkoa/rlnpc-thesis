@@ -40,7 +40,8 @@ def load_n_loop(learner: ActorCriticRecurrentLearner, load_path: str, n_iter: in
 
     render_world = RenderWorld(learner.get_world())
     render_world.start_drawing()
-    learner.loop(temp, render_world.update)
+    # input()
+    learner.loop(temp, render_world.update, True)
 
 
 def simulate_keyboard(world_config):
@@ -54,12 +55,12 @@ def simulate_keyboard(world_config):
 def main():
     tf.logging.set_verbosity(tf.logging.DEBUG)
 
-    lp_config, net_config = get_config("gs://eneka-storage/configs/rl_config_larger_lr_lower_clipnorm.json")
+    lp_config, net_config = get_config("/home/alex/itmo/nauchka/ai/configs/rl_config_alt_5_vc_eps.json")
     learner = initialize_ac_learner(config_one(), lp_config, net_config)
-    load_path = "gs://eneka-storage/a2c_clipnorm_no_std_1"
-    n_iter = 900
-    load_n_loop(learner, load_path, n_iter, 0.5)
-    # simulate_keyboard(config_one())
+    load_path = "gs://eneka-storage/a2c_alt_5_vc_eps"
+    n_iter = 1000
+    load_n_loop(learner, load_path, n_iter, 1)
+    # simulate_keyboard(config_two())
 
 
 if __name__ == '__main__':
