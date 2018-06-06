@@ -734,7 +734,7 @@ class ActorCriticRecurrentLearner:
             return
         self._current_exploration_temperature -= self._process_config.temp_coef * self._current_exploration_temperature
 
-    def loop(self, temperature: float, step_hook: Optional[Callable[[], None]] = None):
+    def loop(self, temperature: float, step_hook: Optional[Callable[[], None]] = None, use_max_steps: bool = False):
         # print("Start the loop!")
 
         self._current_exploration_temperature = temperature
@@ -752,9 +752,9 @@ class ActorCriticRecurrentLearner:
 
             self._update_previous(new_angle_index, step_hook)
 
-            # i += self._process_config.n_skipped_frames
-            # if i > self._process_config.max_ep_length:
-            #     break
+            i += 1
+            if i > self._process_config.max_ep_length and use_max_steps:
+                break
 
     def train(self, save_path: Optional[str] = None, step_hook: Optional[Callable[[], None]] = None) -> None:
         tf.logging.info("Starting training A2C agent")
@@ -770,9 +770,9 @@ class ActorCriticRecurrentLearner:
         )
         self._current_exploration_temperature = float(self._process_config.initial_temperature)
 
-        avg_reward = 0
-        resetted_avg_reward_step = 0
-        std_rewards = 0
+        # avg_reward = 0
+        # resetted_avg_reward_step = 0
+        # std_rewards = 0
 
         reward_sums = []
 
@@ -786,10 +786,10 @@ class ActorCriticRecurrentLearner:
                 total_steps += 1
                 i_step += 1
 
-                if total_steps - resetted_avg_reward_step > self._process_config.reset_reward_every:
-                    resetted_avg_reward_step = int(total_steps - 1)
-                    avg_reward = 0
-                    std_rewards = 0
+                # if total_steps - resetted_avg_reward_step > self._process_config.reset_reward_every:
+                #     resetted_avg_reward_step = int(total_steps - 1)
+                #     avg_reward = 0
+                #     std_rewards = 0
 
                 inputs = self._get_input_list()
 
@@ -812,16 +812,16 @@ class ActorCriticRecurrentLearner:
                 self._update_previous(new_angle_index, step_hook)
                 self._update_temperature()
 
-                n_steps = total_steps - resetted_avg_reward_step
-                new_avg_reward = ((n_steps - 1) * avg_reward + self._previous_reward) / n_steps
-                std_rewards = np.sqrt(
-                    (
-                        (n_steps - 1) * (std_rewards ** 2 + avg_reward ** 2)
-                        + self._previous_reward ** 2
-                    ) / n_steps
-                    - new_avg_reward ** 2
-                )
-                avg_reward = new_avg_reward
+                # n_steps = total_steps - resetted_avg_reward_step
+                # new_avg_reward = ((n_steps - 1) * avg_reward + self._previous_reward) / n_steps
+                # std_rewards = np.sqrt(
+                #     (
+                #         (n_steps - 1) * (std_rewards ** 2 + avg_reward ** 2)
+                #         + self._previous_reward ** 2
+                #     ) / n_steps
+                #     - new_avg_reward ** 2
+                # )
+                # avg_reward = new_avg_reward
                 reward_sums.append(self._previous_reward)
 
                 exps.append(Exp(new_angle_index, value, self._previous_reward, inputs))
@@ -842,11 +842,11 @@ class ActorCriticRecurrentLearner:
                     all_rewards = np.array([exp.reward for exp in exps], dtype=np.float32)
                     # norm_rewards = (all_rewards - np.mean(all_rewards)) / (std_rewards if std_rewards != 0 else 1)
                     # std_norm_rewards = (all_rewards - avg_reward) / (std_rewards if std_rewards != 0 else 1)
-                    std_norm_rewards = all_rewards - avg_reward
+                    # std_norm_rewards = all_rewards - avg_reward
 
                     current_cumul_reward = 0 if game_over else value
                     for i_exp in reversed(range(len(exps))):
-                        cumul_rewards[i_exp] = std_norm_rewards[i_exp] + gamma * current_cumul_reward
+                        cumul_rewards[i_exp] = all_rewards[i_exp] + gamma * current_cumul_reward
                         current_cumul_reward = cumul_rewards[i_exp]
 
                         chosen_actions[i_exp] = exps[i_exp].chosen_action
@@ -869,7 +869,7 @@ class ActorCriticRecurrentLearner:
                         "policy loss: {policy_loss}, value loss: {value_loss}, regularization loss: {reg_loss}, "
                         "global norm: {global_norm}, average reward: {avg_reward}, reward std: {std_rewards}".format(
                             policy_loss=policy_loss, value_loss=value_loss, reg_loss=reg_loss, global_norm=global_norm,
-                            avg_reward=avg_reward, std_rewards=std_rewards
+                            avg_reward=None, std_rewards=None
                         )
                     )
 

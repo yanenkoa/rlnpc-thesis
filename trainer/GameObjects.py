@@ -688,10 +688,12 @@ class World:
 
         self._proximity_sensors_np = proximity_sensors_np
 
-        self._remember_position_interval_s = 0.2
-        self._visit_reward_impact_decay_per_s = 0.987
+        self._remember_position_interval_s = 0.35
         self._n_nearby_visit_points = 100
-        self._visit_coef_ps = 3000.
+        # self._visit_reward_impact_decay_per_s = 0.987
+        # self._visit_coef_ps = 3000.
+        self._time_diff_coef = 0.1
+        self._pos_diff_coef = 0.1
 
         self._current_time_s = 0.
         self._last_saved_position_time_s = 0.
@@ -699,7 +701,7 @@ class World:
 
         self._exploration_pressure = 0.
         self._last_ep_update = 0.
-        self._update_ep_every_s = 0.2
+        self._update_ep_every_s = 0.35
 
         self._wall_collision_checker = WallsCollisionChecker(self._walls)
 
@@ -792,10 +794,14 @@ class World:
         #     self._visit_reward_impact_decay_per_s ** time_diff
         #     for time_diff, pos_diff in relevant_visits
         # ])
+        # reward_impact = sum(
+        #     (self._visit_coef_ps * self._visit_reward_impact_decay_per_s ** time_diff / (
+        #         pos_diff if pos_diff > 50 else 50
+        #     ))
+        #     for time_diff, pos_diff in relevant_visits
+        # ) * elapsed_time_s / self._n_nearby_visit_points
         reward_impact = sum(
-            (self._visit_coef_ps * self._visit_reward_impact_decay_per_s ** time_diff / (
-                pos_diff if pos_diff > 50 else 50
-            ))
+            time_diff * self._time_diff_coef + pos_diff * self._pos_diff_coef
             for time_diff, pos_diff in relevant_visits
         ) * elapsed_time_s / self._n_nearby_visit_points
         # print(reward_impact)
@@ -812,7 +818,7 @@ class World:
         self._update_state(elapsed_time_s)
         self._current_time_s += elapsed_time_s
         self._update_player_positions()
-        self._player.add_custom_reward(-self._exploration_pressure)
+        self._player.add_custom_reward(self._exploration_pressure)
 
         reward = self._player.reward
         self._player.reset_reward_after_step()
